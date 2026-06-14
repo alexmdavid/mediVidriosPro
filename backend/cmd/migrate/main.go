@@ -10,8 +10,7 @@ import (
 )
 
 func main() {
-	databaseURL := "postgresql://neondb_owner:npg_rYm5u2NFKfUl@ep-ancient-bread-atmgyfei-pooler.c-9.us-east-1.aws.neon.tech/neondb?sslmode=require"
-
+	databaseURL := "host=ep-ancient-bread-atmgyfei-pooler.c-9.us-east-1.aws.neon.tech port=5432 user=neondb_owner password=npg_rYm5u2NFKfUl dbname=neondb sslmode=require"
 	// Allow override via env
 	if envURL := os.Getenv("DATABASE_URL"); envURL != "" {
 		databaseURL = envURL
