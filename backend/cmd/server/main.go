@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/gorilla/mux"
+	"github.com/lib/pq"
 	"github.com/rs/cors"
 
 	"github.com/mediVidrios/backend/internal/handler"
@@ -45,7 +46,19 @@ func main() {
 
 	// ---- Conectar a PostgreSQL ----
 	log.Printf("🔌 Conectando a base de datos...")
-	db, err := infrastructure.NewPostgresDB(databaseURL)
+
+	// TRUCO MAESTRO: Traducimos la URL a formato DSN plano (key=value)
+	// Esto desarma la URL y evita que el driver se confunda con el IPv6 de Render
+	// Asegúrate de que no esté solo como _ "github.com/lib/pq" si usas pq.ParseURL
+
+	dsnPlano, err := pq.ParseURL(databaseURL)
+	if err != nil {
+		log.Printf("⚠️ Advertencia al parsear URL (posiblemente ya es DSN): %v", err)
+		dsnPlano = databaseURL // Fallback por si ya venía formateado
+	}
+
+	// Le pasamos el dsnPlano corregido a tu infraestructura
+	db, err := infrastructure.NewPostgresDB(dsnPlano)
 	if err != nil {
 		log.Fatalf("❌ Error al conectar a la base de datos: %v", err)
 	}
