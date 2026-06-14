@@ -8,7 +8,7 @@ import type {
   CrearCotizacionRequest,
 } from '../features/cotizaciones/types'
 
-const API_BASE = '/api'
+const API_BASE = 'https://medividriospro.onrender.com/api'
 
 // =============================================================
 // Función genérica para requests
