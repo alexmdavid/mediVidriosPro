@@ -92,7 +92,13 @@ func main() {
 
 	// ---- Configurar CORS ----
 	c := cors.New(cors.Options{
-		AllowedOrigins:   []string{"http://localhost:5173", "http://localhost:3000", "http://localhost:5174", "https://medividriospro-1.onrender.com"},
+		AllowedOrigins: []string{
+			"http://localhost:5173",
+			"http://localhost:3000",
+			"http://localhost:5174",
+			"https://medividriospro-1.onrender.com",
+			"https://medividriospro.onrender.com",
+		},
 		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
 		AllowedHeaders:   []string{"Content-Type", "Authorization", "Accept"},
 		AllowCredentials: true,

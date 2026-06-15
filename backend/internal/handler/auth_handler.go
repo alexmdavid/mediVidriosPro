@@ -158,16 +158,19 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 
 	usuario, err := h.service.ObtenerUsuarioPorEmail(strings.TrimSpace(strings.ToLower(req.Email)))
 	if err != nil || usuario == nil {
+		log.Printf("⚠️ Login fallido: Usuario no encontrado (%s)", req.Email)
 		sendError(w, http.StatusUnauthorized, "Credenciales inválidas", "")
 		return
 	}
 
 	if usuario.PasswordHash == nil {
+		log.Printf("⚠️ Login fallido: El usuario %s no tiene contraseña (usa Google)", req.Email)
 		sendError(w, http.StatusUnauthorized, "Esta cuenta usa login con Google", "")
 		return
 	}
 
 	if err := bcrypt.CompareHashAndPassword([]byte(*usuario.PasswordHash), []byte(req.Password)); err != nil {
+		log.Printf("⚠️ Login fallido: Contraseña incorrecta para %s", req.Email)
 		sendError(w, http.StatusUnauthorized, "Credenciales inválidas", "")
 		return
 	}
