@@ -25,6 +25,12 @@ async function apiRequest<T>(
     Accept: 'application/json',
   }
 
+  // Añadir token de autenticación si existe en localStorage
+  const token = localStorage.getItem('token')
+  if (token) {
+    defaultHeaders['Authorization'] = `Bearer ${token}`
+  }
+
   const response = await fetch(url, {
     ...options,
     headers: {
