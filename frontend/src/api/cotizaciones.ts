@@ -146,8 +146,30 @@ export async function listarCotizaciones(
 /**
  * Listar todos los clientes.
  */
-export async function listarClientes(buscar: string = ''): Promise<Cliente[]> {
-  return apiRequest<Cliente[]>(`/clientes?buscar=${encodeURIComponent(buscar)}`)
+export async function listarClientes(
+  page: number = 1,
+  limit: number = 30,
+  search: string = ''
+): Promise<{
+  data: Cliente[]
+  total: number
+  page: number
+  limit: number
+  total_pages: number
+}> {
+  const params = new URLSearchParams({
+    page: page.toString(),
+    limit: limit.toString(),
+    search: search
+  })
+  return apiRequest(`/clientes?${params.toString()}`)
+}
+
+/**
+ * Obtener un cliente por ID.
+ */
+export async function obtenerCliente(id: number): Promise<Cliente> {
+  return apiRequest<Cliente>(`/clientes/${id}`)
 }
 
 /**
@@ -157,6 +179,44 @@ export async function crearCliente(cliente: Partial<Cliente>): Promise<Cliente> 
   return apiRequest<Cliente>('/clientes', {
     method: 'POST',
     body: JSON.stringify(cliente),
+  })
+}
+
+/**
+ * Actualizar datos de un cliente existente.
+ */
+export async function actualizarCliente(id: number, cliente: Partial<Cliente>): Promise<Cliente> {
+  return apiRequest<Cliente>(`/clientes/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(cliente),
+  })
+}
+
+/**
+ * Eliminar un cliente.
+ */
+export async function eliminarCliente(id: number): Promise<void> {
+  return apiRequest<void>(`/clientes/${id}`, {
+    method: 'DELETE',
+  })
+}
+
+/**
+ * Actualizar una cotización (estado, total, margen).
+ */
+export async function actualizarCotizacion(id: number, data: { estado?: string; total_cotizado?: number; porcentaje_margen?: number }): Promise<void> {
+  return apiRequest<void>(`/cotizaciones/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(data),
+  })
+}
+
+/**
+ * Eliminar una cotización.
+ */
+export async function eliminarCotizacion(id: number): Promise<void> {
+  return apiRequest<void>(`/cotizaciones/${id}`, {
+    method: 'DELETE',
   })
 }
 

@@ -220,6 +220,32 @@ func (r *ClienteRepository) Crear(cliente *domain.Cliente) (int, error) {
 	return id, nil
 }
 
+// Actualizar actualiza los datos de un cliente existente.
+func (r *ClienteRepository) Actualizar(id int, cliente *domain.Cliente) error {
+	query := `
+		UPDATE clientes SET
+			nombre = COALESCE(NULLIF($1, ''), nombre),
+			telefono = $2,
+			email = $3,
+			direccion = $4,
+			notas = $5,
+			updated_at = NOW()
+		WHERE id = $6
+	`
+	_, err := r.db.Exec(query,
+		cliente.Nombre,
+		cliente.Telefono,
+		cliente.Email,
+		cliente.Direccion,
+		cliente.Notas,
+		id,
+	)
+	if err != nil {
+		return fmt.Errorf("error al actualizar cliente %d: %w", id, err)
+	}
+	return nil
+}
+
 // ObtenerPorID retorna un cliente por su ID.
 func (r *ClienteRepository) ObtenerPorID(id int) (*domain.Cliente, error) {
 	query := `
@@ -244,22 +270,35 @@ func (r *ClienteRepository) ObtenerPorID(id int) (*domain.Cliente, error) {
 }
 
 // Listar retorna todos los clientes con filtros básicos.
-func (r *ClienteRepository) Listar(buscar string) ([]domain.Cliente, error) {
-	query := `
-		SELECT id, nombre, telefono, email, direccion, notas, created_at, updated_at
-		FROM clientes
-		WHERE ($1 = '' OR nombre ILIKE $1 OR email ILIKE $1 OR telefono ILIKE $1)
-		ORDER BY nombre ASC
-	`
-
+func (r *ClienteRepository) Listar(page, pageSize int, buscar string) ([]domain.Cliente, int, error) {
 	searchVal := ""
 	if buscar != "" {
 		searchVal = "%" + buscar + "%"
 	}
 
-	rows, err := r.db.Query(query, searchVal)
+	// 1. Contar total de registros con el filtro
+	countQuery := `
+		SELECT COUNT(*) FROM clientes 
+		WHERE ($1 = '' OR nombre ILIKE $1 OR email ILIKE $1 OR telefono ILIKE $1)`
+
+	var total int
+	if err := r.db.QueryRow(countQuery, searchVal).Scan(&total); err != nil {
+		return nil, 0, fmt.Errorf("error al contar clientes: %w", err)
+	}
+
+	// 2. Obtener página de datos
+	offset := (page - 1) * pageSize
+	dataQuery := `
+		SELECT id, nombre, telefono, email, direccion, notas, created_at, updated_at
+		FROM clientes
+		WHERE ($1 = '' OR nombre ILIKE $1 OR email ILIKE $1 OR telefono ILIKE $1)
+		ORDER BY nombre ASC
+		LIMIT $2 OFFSET $3
+	`
+
+	rows, err := r.db.Query(dataQuery, searchVal, pageSize, offset)
 	if err != nil {
-		return nil, fmt.Errorf("error al listar clientes: %w", err)
+		return nil, 0, fmt.Errorf("error al listar clientes: %w", err)
 	}
 	defer rows.Close()
 
@@ -270,11 +309,11 @@ func (r *ClienteRepository) Listar(buscar string) ([]domain.Cliente, error) {
 			&c.ID, &c.Nombre, &c.Telefono, &c.Email,
 			&c.Direccion, &c.Notas, &c.CreatedAt, &c.UpdatedAt,
 		); err != nil {
-			return nil, fmt.Errorf("error al escanear cliente: %w", err)
+			return nil, 0, fmt.Errorf("error al escanear cliente: %w", err)
 		}
 		clientes = append(clientes, c)
 	}
-	return clientes, nil
+	return clientes, total, nil
 }
 
 // Eliminar elimina un cliente por ID.
@@ -416,8 +455,8 @@ func (r *CotizacionRepository) ObtenerPorID(id int) (*domain.Cotizacion, error) 
 			&item.TipoVidrio.ID, &item.TipoVidrio.Nombre,
 			&item.TipoVidrio.EspesorMM, &item.TipoVidrio.PrecioM2,
 		); err != nil {
-			log.Printf("❌ REPO: Error al escanear item para cotización %d: %v", id, err)
 			return nil, fmt.Errorf("error al escanear item: %w", err)
+			log.Printf("❌ REPO: Error al escanear item para cotización %d: %v", id, err)
 		}
 		cot.Items = append(cot.Items, item)
 	}

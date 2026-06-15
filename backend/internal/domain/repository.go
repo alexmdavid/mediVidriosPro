@@ -18,8 +18,10 @@ type ClienteRepository interface {
 	Crear(cliente *Cliente) (int, error)
 	// ObtenerPorID retorna un cliente por su identificador.
 	ObtenerPorID(id int) (*Cliente, error)
+	// Actualizar actualiza los datos de un cliente existente.
+	Actualizar(id int, cliente *Cliente) error
 	// Listar retorna todos los clientes con filtros básicos.
-	Listar(buscar string) ([]Cliente, error)
+	Listar(page, pageSize int, buscar string) ([]Cliente, int, error)
 	// Eliminar elimina un cliente por ID.
 	Eliminar(id int) error
 }

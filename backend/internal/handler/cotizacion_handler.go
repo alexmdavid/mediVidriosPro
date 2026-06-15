@@ -38,6 +38,9 @@ func (h *CotizacionHandler) RegisterRoutes(r *mux.Router) {
 	// Clientes
 	api.HandleFunc("/clientes", AuthMiddleware(h.ListarClientes)).Methods("GET")
 	api.HandleFunc("/clientes", AuthMiddleware(h.CrearCliente)).Methods("POST")
+	api.HandleFunc("/clientes/{id:[0-9]+}", AuthMiddleware(AdminMiddleware(h.ObtenerCliente))).Methods("GET")
+	api.HandleFunc("/clientes/{id:[0-9]+}", AuthMiddleware(AdminMiddleware(h.ActualizarClienteHandler))).Methods("PUT")
+	api.HandleFunc("/clientes/{id:[0-9]+}", AuthMiddleware(AdminMiddleware(h.EliminarClienteHandler))).Methods("DELETE")
 
 	// Cotizaciones
 	api.HandleFunc("/cotizaciones", AuthMiddleware(h.CrearCotizacion)).Methods("POST")
@@ -47,6 +50,9 @@ func (h *CotizacionHandler) RegisterRoutes(r *mux.Router) {
 	api.HandleFunc("/cotizaciones/{id:[0-9]+}", AuthMiddleware(AdminMiddleware(h.ActualizarCotizacion))).Methods("PUT")
 	api.HandleFunc("/cotizaciones/{id:[0-9]+}", AuthMiddleware(AdminMiddleware(h.EliminarCotizacion))).Methods("DELETE")
 	api.HandleFunc("/cotizaciones/{id:[0-9]+}/asignar", AuthMiddleware(AdminMiddleware(h.AsignarCotizacion))).Methods("PUT")
+
+	// Exportación
+	api.HandleFunc("/cotizaciones/{id:[0-9]+}/export", AuthMiddleware(h.ExportarCotizacion)).Methods("GET")
 
 	// Preview de cálculo (sin persistir)
 	api.HandleFunc("/cotizaciones/preview", AuthMiddleware(h.PreviewCotizacion)).Methods("POST") // Protegido
@@ -69,13 +75,28 @@ func (h *CotizacionHandler) ObtenerTiposVidrio(w http.ResponseWriter, r *http.Re
 
 // ListarClientes retorna los clientes para el selector.
 func (h *CotizacionHandler) ListarClientes(w http.ResponseWriter, r *http.Request) {
-	buscar := r.URL.Query().Get("buscar")
-	clientes, err := h.service.ListarClientes(buscar)
+	query := r.URL.Query()
+	page, _ := strconv.Atoi(query.Get("page"))
+	limit, _ := strconv.Atoi(query.Get("limit"))
+	buscar := strings.TrimSpace(query.Get("search"))
+
+	if limit == 0 {
+		limit = 30
+	}
+
+	clientes, total, err := h.service.ListarClientes(page, limit, buscar)
 	if err != nil {
 		sendError(w, http.StatusInternalServerError, "Error al listar clientes", err.Error())
 		return
 	}
-	sendJSON(w, http.StatusOK, clientes)
+
+	sendJSON(w, http.StatusOK, map[string]interface{}{
+		"data":        clientes,
+		"total":       total,
+		"page":        page,
+		"limit":       limit,
+		"total_pages": (total + limit - 1) / limit,
+	})
 }
 
 // CrearCliente permite el registro rápido de clientes.
@@ -280,6 +301,186 @@ func (h *CotizacionHandler) AsignarCotizacion(w http.ResponseWriter, r *http.Req
 	}
 
 	sendJSON(w, http.StatusOK, map[string]string{"mensaje": "Cotización asignada al cliente"})
+}
+
+// =============================================================
+// CRUD de Clientes
+// =============================================================
+
+func (h *CotizacionHandler) ObtenerCliente(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	id, err := strconv.Atoi(vars["id"])
+	if err != nil {
+		sendError(w, http.StatusBadRequest, "ID inválido", "")
+		return
+	}
+	cliente, err := h.service.ObtenerCliente(id)
+	if err != nil || cliente == nil {
+		sendError(w, http.StatusNotFound, "Cliente no encontrado", "")
+		return
+	}
+	sendJSON(w, http.StatusOK, cliente)
+}
+
+func (h *CotizacionHandler) ActualizarClienteHandler(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	id, err := strconv.Atoi(vars["id"])
+	if err != nil {
+		sendError(w, http.StatusBadRequest, "ID inválido", "")
+		return
+	}
+	var c domain.Cliente
+	if err := json.NewDecoder(r.Body).Decode(&c); err != nil {
+		sendError(w, http.StatusBadRequest, "JSON inválido", "")
+		return
+	}
+	if err := h.service.ActualizarCliente(id, &c); err != nil {
+		sendError(w, http.StatusInternalServerError, "Error al actualizar cliente", err.Error())
+		return
+	}
+	c.ID = id
+	sendJSON(w, http.StatusOK, c)
+}
+
+func (h *CotizacionHandler) EliminarClienteHandler(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	id, err := strconv.Atoi(vars["id"])
+	if err != nil {
+		sendError(w, http.StatusBadRequest, "ID inválido", "")
+		return
+	}
+	if err := h.service.EliminarCliente(id); err != nil {
+		sendError(w, http.StatusInternalServerError, "Error al eliminar cliente", err.Error())
+		return
+	}
+	sendJSON(w, http.StatusOK, map[string]string{"mensaje": "Cliente eliminado"})
+}
+
+// =============================================================
+// Exportación de cotizaciones: PDF, CSV, DOCX
+// =============================================================
+
+func (h *CotizacionHandler) ExportarCotizacion(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	id, err := strconv.Atoi(vars["id"])
+	if err != nil {
+		sendError(w, http.StatusBadRequest, "ID inválido", "")
+		return
+	}
+
+	format := strings.ToLower(strings.TrimSpace(r.URL.Query().Get("format")))
+	if format == "" {
+		format = "pdf"
+	}
+
+	resp, err := h.service.ObtenerCotizacion(id)
+	if err != nil || resp == nil {
+		sendError(w, http.StatusNotFound, "Cotización no encontrada", "")
+		return
+	}
+
+	switch format {
+	case "csv":
+		exportarCSV(w, resp)
+	case "docx":
+		exportarDOCX(w, resp)
+	default:
+		exportarPDF(w, resp)
+	}
+}
+
+// =============================================================
+// Exportar CSV
+// =============================================================
+
+func exportarCSV(w http.ResponseWriter, resp *domain.CotizacionResponse) {
+	cot := resp.Cotizacion
+	filename := fmt.Sprintf("Cotizacion_%d.csv", cot.ID)
+	w.Header().Set("Content-Type", "text/csv; charset=utf-8")
+	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"`, filename))
+
+	// BOM para Excel UTF-8
+	w.Write([]byte("\ufeff"))
+
+	// Escribir encabezado
+	csv := fmt.Sprintf("Cotización #%d\n", cot.ID)
+	csv += fmt.Sprintf("Cliente,%s\n", cot.Cliente.Nombre)
+	csv += fmt.Sprintf("Fecha,%s\n", cot.FechaCreacion.Format("2006-01-02"))
+	csv += fmt.Sprintf("Descripción,%s\n", cot.DescripcionObra)
+	csv += fmt.Sprintf("Estado,%s\n", cot.Estado)
+	csv += "\nITEMS,DETALLE,AREA EN M²,VALOR TOTAL\n"
+
+	for i, item := range cot.Items {
+		detalle := fmt.Sprintf("%s %dx%d", item.TipoItem, int(item.AnchoMT*100), int(item.AltoMT*100))
+		csv += fmt.Sprintf("%d,%s,%.4f,%.2f\n", i+1, detalle, item.AreaTotalM2, item.PrecioCalculado)
+	}
+
+	csv += fmt.Sprintf("\nTotal,%.4f,%.2f\n", resp.Resumen.AreaTotalM2, cot.TotalCotizado)
+	w.Write([]byte(csv))
+}
+
+// =============================================================
+// Exportar DOCX (Word HTML format)
+// =============================================================
+
+func exportarDOCX(w http.ResponseWriter, resp *domain.CotizacionResponse) {
+	cot := resp.Cotizacion
+	filename := fmt.Sprintf("Cotizacion_%d.doc", cot.ID)
+	w.Header().Set("Content-Type", "application/msword")
+	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"`, filename))
+
+	fecha := cot.FechaCreacion.Format("2006-01-02")
+	var itemsHTML string
+	for i, item := range cot.Items {
+		itemsHTML += fmt.Sprintf(`
+      <tr>
+        <td style="border:1px solid black;padding:5px;text-align:center">%d</td>
+        <td style="border:1px solid black;padding:5px">%s %dx%d</td>
+        <td style="border:1px solid black;padding:5px;text-align:center">%.4f</td>
+        <td style="border:1px solid black;padding:5px;text-align:right">$%.0f</td>
+      </tr>`, i+1, strings.ToUpper(item.TipoItem), int(item.AnchoMT*100), int(item.AltoMT*100), item.AreaTotalM2, item.PrecioCalculado)
+	}
+
+	html := fmt.Sprintf(`<html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word'>
+<head><meta charset="utf-8"><style>
+body{font-family:'Times New Roman',serif;margin:1in}
+h1{font-size:16pt;text-align:center}
+table{width:100%%;border-collapse:collapse;font-size:9pt}
+td,th{border:1px solid black;padding:5px}
+th{background:#f0f0f0;text-align:center;font-weight:bold}
+.empresa{font-weight:bold;font-size:12pt}
+.info{font-size:10pt}
+.firma{margin-top:40px}
+</style></head><body>
+<div class="empresa">RUBIEL ANTONIO RUIDIAZ COMAS</div>
+<div class="info">RUT: 85165741</div>
+<div class="info">Correo: rubanruic@gmail.com - Celular: 3103233594</div>
+<div class="info">CALLE 20 #28-21 DUITAMA</div>
+<p style="margin-top:15px">Duitama, %s</p>
+<p>Señor</p>
+<p style="font-weight:bold;font-size:11pt">%s</p>
+<p>Ciudad</p>
+<h1>COTIZACION</h1>
+<table><thead><tr><th>ITEMS</th><th>DETALLE</th><th>AREA EN M²</th><th>VALOR TOTAL</th></tr></thead><tbody>%s</tbody></table>
+<p><b>CONDICIONES ECONÓMICAS:</b> 60%% de anticipo al aceptar esta cotizaci&oacute;n y 40%% contra entrega.</p>
+<p><b>NO INCLUYE:</b> obras de albañiler&iacute;a.</p>
+<p><b>TIEMPO DE ENTREGA:</b> A acordar con el cliente.</p>
+<p><b>VALIDEZ OFERTA:</b> 10 d&iacute;as calendario.</p>
+<div class="firma"><p>Cordialmente,</p><br><hr style="width:200px;text-align:left"><p><b>RUBIEL ANTONIO RUIDIAZ COMAS</b></p><p>CC. 85165741</p></div>
+</body></html>`, fecha, strings.ToUpper(cot.Cliente.Nombre), itemsHTML)
+
+	w.Write([]byte("\ufeff" + html))
+}
+
+// =============================================================
+// Exportar PDF (server-side usando HTML to PDF conversion)
+// =============================================================
+
+func exportarPDF(w http.ResponseWriter, resp *domain.CotizacionResponse) {
+	// Server-side PDF generation - note that the primary PDF generation
+	// happens client-side via jspdf. This endpoint returns the data as JSON
+	// so the frontend can generate the PDF with the exact format.
+	sendJSON(w, http.StatusOK, resp)
 }
 
 // =============================================================

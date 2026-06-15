@@ -42,13 +42,34 @@ func (s *CotizacionService) ObtenerTiposVidrio() ([]domain.TipoVidrio, error) {
 }
 
 // ListarClientes retorna la lista de clientes registrados.
-func (s *CotizacionService) ListarClientes(buscar string) ([]domain.Cliente, error) {
-	return s.clienteRepo.Listar(buscar)
+func (s *CotizacionService) ListarClientes(page, pageSize int, buscar string) ([]domain.Cliente, int, error) {
+	if page < 1 {
+		page = 1
+	}
+	if pageSize < 1 {
+		pageSize = 30
+	}
+	return s.clienteRepo.Listar(page, pageSize, buscar)
 }
 
 // CrearCliente registra un nuevo cliente (Lazy Creation).
 func (s *CotizacionService) CrearCliente(c *domain.Cliente) (int, error) {
 	return s.clienteRepo.Crear(c)
+}
+
+// ObtenerCliente retorna un cliente por ID.
+func (s *CotizacionService) ObtenerCliente(id int) (*domain.Cliente, error) {
+	return s.clienteRepo.ObtenerPorID(id)
+}
+
+// ActualizarCliente actualiza los datos de un cliente existente.
+func (s *CotizacionService) ActualizarCliente(id int, c *domain.Cliente) error {
+	return s.clienteRepo.Actualizar(id, c)
+}
+
+// EliminarCliente elimina un cliente por ID.
+func (s *CotizacionService) EliminarCliente(id int) error {
+	return s.clienteRepo.Eliminar(id)
 }
 
 // =============================================================

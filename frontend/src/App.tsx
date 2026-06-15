@@ -5,11 +5,12 @@ import ClientPortal from './features/auth/ClientPortal'
 import CotizacionForm from './features/cotizaciones/CotizacionForm'
 import CotizacionList from './features/cotizaciones/CotizacionList'
 import CotizacionDetalle from './features/cotizaciones/CotizacionDetalle'
+import ClientesList from './features/clientes/ClientesList'
 
 // =============================================================
 // Tipos de vista
 // =============================================================
-type VistaAdmin = 'lista' | 'nueva' | 'detalle'
+type VistaAdmin = 'lista' | 'nueva' | 'detalle' | 'clientes'
 
 // =============================================================
 // App con autenticación
@@ -77,6 +78,7 @@ function AppContent() {
   const irALista = () => { setVistaAdmin('lista'); setDetalleId(null) }
   const irANueva = () => { setVistaAdmin('nueva'); setDetalleId(null) }
   const irADetalle = (id: number) => { setVistaAdmin('detalle'); setDetalleId(id) }
+  const irAClientes = () => { setVistaAdmin('clientes'); setDetalleId(null) }
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -124,6 +126,19 @@ function AppContent() {
                   Nueva
                 </span>
               </button>
+              <button
+                onClick={irAClientes}
+                className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
+                  vistaAdmin === 'clientes' ? 'bg-primary-50 text-primary-700' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+                }`}
+              >
+                <span className="flex items-center gap-2">
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
+                  </svg>
+                  Clientes
+                </span>
+              </button>
             </nav>
 
             <div className="hidden md:flex items-center gap-4">
@@ -144,6 +159,9 @@ function AppContent() {
         {vistaAdmin === 'nueva' && <CotizacionForm />}
         {vistaAdmin === 'detalle' && detalleId !== null && (
           <CotizacionDetalle cotizacionId={detalleId} onVolver={irALista} />
+        )}
+        {vistaAdmin === 'clientes' && (
+          <ClientesList onVolver={irALista} />
         )}
       </main>
     </div>

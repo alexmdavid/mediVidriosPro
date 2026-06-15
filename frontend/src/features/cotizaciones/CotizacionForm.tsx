@@ -65,7 +65,7 @@ export default function CotizacionForm() {
         setError('No se pudieron cargar los tipos de vidrio. Verifica que el backend esté ejecutándose.')
       })
       
-    listarClientes().then(setClientes).catch(console.error)
+    listarClientes().then((res) => setClientes(res.data)).catch(console.error)
   }, [])
 
   // ---- Calcular totales ----
