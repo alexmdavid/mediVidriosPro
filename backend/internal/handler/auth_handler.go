@@ -147,37 +147,54 @@ func (h *AuthHandler) Registro(w http.ResponseWriter, r *http.Request) {
 func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 	var req domain.LoginRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		log.Printf("❌ LOGIN: Error decodificando JSON: %v", err)
 		sendError(w, http.StatusBadRequest, "JSON inválido", err.Error())
 		return
 	}
+	req.Email = strings.TrimSpace(strings.ToLower(req.Email))
+	req.Password = strings.TrimSpace(req.Password)
+
+	log.Printf("🔍 Intentando login para: [%s] (Pass len: %d)", req.Email, len(req.Password))
 
 	if req.Email == "" || req.Password == "" {
+		log.Printf("⚠️ Login rechazado: campos vacíos")
 		sendError(w, http.StatusBadRequest, "Email y contraseña son obligatorios", "")
 		return
 	}
 
-	usuario, err := h.service.ObtenerUsuarioPorEmail(strings.TrimSpace(strings.ToLower(req.Email)))
-	if err != nil || usuario == nil {
-		log.Printf("⚠️ Login fallido: Usuario no encontrado (%s)", req.Email)
+	usuario, err := h.service.ObtenerUsuarioPorEmail(req.Email)
+	if err != nil {
+		log.Printf("❌ LOGIN DB ERROR para %s: %v", req.Email, err)
+		sendError(w, http.StatusInternalServerError, "Error interno del servidor", "")
+		return
+	}
+
+	if usuario == nil {
+		log.Printf("⚠️ LOGIN FALLIDO: Usuario [%s] no existe en la base de datos", req.Email)
 		sendError(w, http.StatusUnauthorized, "Credenciales inválidas", "")
 		return
 	}
 
 	if usuario.PasswordHash == nil {
-		log.Printf("⚠️ Login fallido: El usuario %s no tiene contraseña (usa Google)", req.Email)
+		log.Printf("⚠️ Login fallido: El usuario %s no tiene hash de password (usa Google Login)", req.Email)
 		sendError(w, http.StatusUnauthorized, "Esta cuenta usa login con Google", "")
 		return
 	}
 
-	if err := bcrypt.CompareHashAndPassword([]byte(*usuario.PasswordHash), []byte(req.Password)); err != nil {
+	log.Printf("🔑 Comparando hashes para %s. Hash en DB empieza por: %s...", req.Email, (*usuario.PasswordHash)[:10])
+	err = bcrypt.CompareHashAndPassword([]byte(*usuario.PasswordHash), []byte(req.Password))
+	if err != nil {
 		hashLen := len(*usuario.PasswordHash)
-		log.Printf("⚠️ Login fallido: Contraseña incorrecta para %s (Hash en DB len: %d)", req.Email, hashLen)
+		log.Printf("⚠️ LOGIN FALLIDO: Password mismatch para %s (Bcrypt err: %v, HashLen: %d, InputLen: %d)", req.Email, err, hashLen, len(req.Password))
 		sendError(w, http.StatusUnauthorized, "Credenciales inválidas", "")
 		return
 	}
 
+	log.Printf("✅ LOGIN EXITOSO: Usuario %s autenticado correctamente", req.Email)
+
 	token, err := generarToken(usuario)
 	if err != nil {
+		log.Printf("❌ ERROR generando token para %s: %v", req.Email, err)
 		sendError(w, http.StatusInternalServerError, "Error al generar token", err.Error())
 		return
 	}

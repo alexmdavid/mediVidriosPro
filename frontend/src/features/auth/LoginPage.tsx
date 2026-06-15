@@ -92,15 +92,19 @@ export default function LoginPage() {
     setError(null)
     setCargando(true)
 
+    console.log('🚀 Iniciando login...', { email, passwordLength: password.length });
+
     try {
       if (modo === 'login') {
         const resp = await login({ email, password })
+        console.log('✅ Login exitoso:', resp.usuario.email);
         authLogin(resp.token, resp.usuario)
       } else {
         const resp = await registro({ nombre, email, password, telefono })
         authLogin(resp.token, resp.usuario)
       }
     } catch (err) {
+      console.error('❌ Error en el proceso de login:', err);
       setError(err instanceof Error ? err.message : 'Error al autenticar')
     } finally {
       setCargando(false)

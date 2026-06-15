@@ -65,6 +65,23 @@ func main() {
 	defer db.Close()
 	log.Printf("✅ Conexión a PostgreSQL establecida")
 
+	// ---- ASEGURAR USUARIO ADMIN (SOLUCIÓN AL 401) ----
+	log.Printf("🌱 Verificando credenciales de administrador...")
+	adminEmail := "admin@medividrios.com"
+	adminPassHash := "$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgNI9u969NS.vX.Y2VNs9.FpGv9S" // Hash para '123456'
+	res, err := db.DB.Exec(`
+		INSERT INTO usuarios (nombre, email, password_hash, rol, activo)
+		VALUES ('Administrador', $1, $2, 'admin', true)
+		ON CONFLICT (email) DO UPDATE SET password_hash = $2, rol = 'admin';
+	`, adminEmail, adminPassHash)
+
+	if err != nil {
+		log.Printf("❌ CRÍTICO: Error al asegurar admin en arranque: %v", err)
+	} else {
+		rows, _ := res.RowsAffected()
+		log.Printf("✨ SEED: Admin verificado/actualizado (Filas: %d). Email: %s, Hash usado: %s...", rows, adminEmail, adminPassHash[:10])
+	}
+
 	// ---- Inicializar capas de arquitectura ----
 	cotizacionService := service.NewCotizacionService(
 		db.TipoVidrioRepo,

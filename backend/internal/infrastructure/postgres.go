@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"log"
 	"net"
 	"regexp"
 	"strings"
@@ -674,6 +675,7 @@ func (r *UsuarioRepository) ObtenerPorID(id int) (*domain.Usuario, error) {
 
 // ObtenerPorEmail retorna un usuario por su email.
 func (r *UsuarioRepository) ObtenerPorEmail(email string) (*domain.Usuario, error) {
+	log.Printf("🗄️ Buscando usuario por email en DB: [%s]", email)
 	query := `
 		SELECT id, nombre, email, password_hash, google_id, rol, telefono, activo, created_at, updated_at
 		FROM usuarios WHERE email = $1
@@ -684,11 +686,13 @@ func (r *UsuarioRepository) ObtenerPorEmail(email string) (*domain.Usuario, erro
 		&u.Rol, &u.Telefono, &u.Activo, &u.CreatedAt, &u.UpdatedAt,
 	)
 	if err == sql.ErrNoRows {
+		log.Printf("🗄️ Usuario [%s] no encontrado (sql.ErrNoRows)", email)
 		return nil, nil
 	}
 	if err != nil {
 		return nil, fmt.Errorf("error al obtener usuario por email: %w", err)
 	}
+	log.Printf("🗄️ Usuario [%s] encontrado. ID: %d, Rol: %s", email, u.ID, u.Rol)
 	return &u, nil
 }
 
