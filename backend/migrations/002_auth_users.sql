@@ -49,7 +49,7 @@ CREATE TRIGGER trigger_usuarios_updated
 -- Contraseña: 1234 (hash bcrypt)
 -- =============================================================
 INSERT INTO usuarios (nombre, email, password_hash, rol) VALUES
-    ('Administrador', 'admin', '$2a$10$vI8aWBnW3fID.92DG3Syeut.fN7dVqNI/qVmZCnOZyS8R/y7V.9K2', 'admin')
+    ('Administrador', 'admin@medividrios.com', '$2a$10$vI8aWBnW3fID.92DG3Syeut.fN7dVqNI/qVmZCnOZyS8R/y7V.9K2', 'admin')
 ON CONFLICT (email) DO UPDATE SET password_hash = EXCLUDED.password_hash;
 
 COMMIT;
