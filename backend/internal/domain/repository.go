@@ -18,6 +18,10 @@ type ClienteRepository interface {
 	Crear(cliente *Cliente) (int, error)
 	// ObtenerPorID retorna un cliente por su identificador.
 	ObtenerPorID(id int) (*Cliente, error)
+	// Listar retorna todos los clientes con filtros básicos.
+	Listar(buscar string) ([]Cliente, error)
+	// Eliminar elimina un cliente por ID.
+	Eliminar(id int) error
 }
 
 // CotizacionRepository define las operaciones de acceso a datos para cotizaciones.
