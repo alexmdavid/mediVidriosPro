@@ -50,7 +50,7 @@ CREATE TRIGGER trigger_usuarios_updated
 -- =============================================================
 -- Password hash for 'admin123' generated with bcrypt
 INSERT INTO usuarios (nombre, email, password_hash, rol) VALUES
-    ('Administrador', 'admin@medividrios.com', '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy', 'admin')
+    ('Administrador', 'admin@medividrios.com', '$2a$10$FFXmdzNFrof9aNxIQ9MUBuMM.1vm9/Uhjmor3wbBqR7dL2AbRGv5e', 'admin')
 ON CONFLICT (email) DO NOTHING;
 
 COMMIT;
