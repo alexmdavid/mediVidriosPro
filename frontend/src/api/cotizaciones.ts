@@ -53,6 +53,15 @@ async function apiRequest<T>(
 // Endpoints de la API
 // =============================================================
 
+export interface Cliente {
+  id: number
+  nombre: string
+  telefono?: string
+  email?: string
+  direccion?: string
+  notas?: string
+}
+
 /**
  * Obtener todos los tipos de vidrio activos del catálogo.
  */
@@ -132,6 +141,23 @@ export async function listarCotizaciones(
   }
 
   return apiRequest(`/cotizaciones?${params.toString()}`)
+}
+
+/**
+ * Listar todos los clientes.
+ */
+export async function listarClientes(buscar: string = ''): Promise<Cliente[]> {
+  return apiRequest<Cliente[]>(`/clientes?buscar=${encodeURIComponent(buscar)}`)
+}
+
+/**
+ * Crear un nuevo cliente (Lazy Creation).
+ */
+export async function crearCliente(cliente: Partial<Cliente>): Promise<Cliente> {
+  return apiRequest<Cliente>('/clientes', {
+    method: 'POST',
+    body: JSON.stringify(cliente),
+  })
 }
 
 /**

@@ -243,6 +243,46 @@ func (r *ClienteRepository) ObtenerPorID(id int) (*domain.Cliente, error) {
 	return &c, nil
 }
 
+// Listar retorna todos los clientes con filtros básicos.
+func (r *ClienteRepository) Listar(buscar string) ([]domain.Cliente, error) {
+	query := `
+		SELECT id, nombre, telefono, email, direccion, notas, created_at, updated_at
+		FROM clientes
+		WHERE ($1 = '' OR nombre ILIKE $1 OR email ILIKE $1 OR telefono ILIKE $1)
+		ORDER BY nombre ASC
+	`
+
+	searchVal := ""
+	if buscar != "" {
+		searchVal = "%" + buscar + "%"
+	}
+
+	rows, err := r.db.Query(query, searchVal)
+	if err != nil {
+		return nil, fmt.Errorf("error al listar clientes: %w", err)
+	}
+	defer rows.Close()
+
+	var clientes []domain.Cliente
+	for rows.Next() {
+		var c domain.Cliente
+		if err := rows.Scan(
+			&c.ID, &c.Nombre, &c.Telefono, &c.Email,
+			&c.Direccion, &c.Notas, &c.CreatedAt, &c.UpdatedAt,
+		); err != nil {
+			return nil, fmt.Errorf("error al escanear cliente: %w", err)
+		}
+		clientes = append(clientes, c)
+	}
+	return clientes, nil
+}
+
+// Eliminar elimina un cliente por ID.
+func (r *ClienteRepository) Eliminar(id int) error {
+	_, err := r.db.Exec("DELETE FROM clientes WHERE id = $1", id)
+	return err
+}
+
 // =============================================================
 // CotizacionRepository - Implementación PostgreSQL
 // =============================================================
@@ -376,8 +416,8 @@ func (r *CotizacionRepository) ObtenerPorID(id int) (*domain.Cotizacion, error) 
 			&item.TipoVidrio.ID, &item.TipoVidrio.Nombre,
 			&item.TipoVidrio.EspesorMM, &item.TipoVidrio.PrecioM2,
 		); err != nil {
-			return nil, fmt.Errorf("error al escanear item: %w", err)
 			log.Printf("❌ REPO: Error al escanear item para cotización %d: %v", id, err)
+			return nil, fmt.Errorf("error al escanear item: %w", err)
 		}
 		cot.Items = append(cot.Items, item)
 	}

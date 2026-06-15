@@ -10,8 +10,9 @@ import {
   formatMoneda,
 } from './types'
 import FilaMedidaRow from './FilaMedida'
-import { obtenerTiposVidrio, crearCotizacion } from '../../api/cotizaciones'
+import { obtenerTiposVidrio, crearCotizacion, listarClientes, crearCliente, type Cliente } from '../../api/cotizaciones'
 import { generarCotizacionPDF } from './GenerarPDF'
+import { generarCotizacionWord } from './GenerarWord'
 
 // =============================================================
 // Generar ID temporal único para filas
@@ -42,11 +43,13 @@ function crearFilaVacia(): FilaMedida {
 // =============================================================
 export default function CotizacionForm() {
   // ---- Estado ----
-  const [clienteNombre, setClienteNombre] = useState('')
+  const [clienteId, setClienteId] = useState<number | 'nuevo'>(0)
+  const [nuevoClienteNombre, setNuevoClienteNombre] = useState('')
   const [descripcionObra, setDescripcionObra] = useState('')
   const [porcentajeMargen, setPorcentajeMargen] = useState('30')
   const [filas, setFilas] = useState<FilaMedida[]>([crearFilaVacia()])
   const [tiposVidrio, setTiposVidrio] = useState<TipoVidrio[]>([])
+  const [clientes, setClientes] = useState<Cliente[]>([])
   const [cargando, setCargando] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [resultado, setResultado] = useState<CotizacionResponse | null>(null)
@@ -61,6 +64,8 @@ export default function CotizacionForm() {
         console.error('Error al cargar tipos de vidrio:', err)
         setError('No se pudieron cargar los tipos de vidrio. Verifica que el backend esté ejecutándose.')
       })
+      
+    listarClientes().then(setClientes).catch(console.error)
   }, [])
 
   // ---- Calcular totales ----
@@ -153,7 +158,8 @@ export default function CotizacionForm() {
 
   // ---- Validar formulario ----
   const esFormularioValido = (): boolean => {
-    if (!clienteNombre.trim()) return false
+    if (clienteId === 0) return false
+    if (clienteId === 'nuevo' && !nuevoClienteNombre.trim()) return false
     if (!descripcionObra.trim()) return false
     if (filas.length === 0) return false
 
@@ -183,9 +189,16 @@ export default function CotizacionForm() {
     setResultado(null)
 
     try {
+      let idParaCotizacion = typeof clienteId === 'number' ? clienteId : 0
+      
+      // Lazy Creation del cliente si es nuevo
+      if (clienteId === 'nuevo') {
+        const nc = await crearCliente({ nombre: nuevoClienteNombre.trim() })
+        idParaCotizacion = nc.id
+      }
+
       const response = await crearCotizacion({
-        cliente_id: 0,
-        cliente_nombre: clienteNombre.trim(),
+        cliente_id: idParaCotizacion,
         descripcion_obra: descripcionObra.trim(),
         porcentaje_margen: margen,
         items: filas.map((f) => ({
@@ -210,7 +223,8 @@ export default function CotizacionForm() {
 
   // ---- Resetear formulario ----
   const handleReset = () => {
-    setClienteNombre('')
+    setClienteId(0)
+    setNuevoClienteNombre('')
     setDescripcionObra('')
     setPorcentajeMargen('30')
     setFilas([crearFilaVacia()])
@@ -341,16 +355,37 @@ export default function CotizacionForm() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Nombre del Cliente *
+                  Cliente *
                 </label>
-                <input
-                  type="text"
-                  value={clienteNombre}
-                  onChange={(e) => setClienteNombre(e.target.value)}
-                  placeholder="Ej: Juan Pérez, Constructora XYZ"
+                <select
+                  value={clienteId}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setClienteId(val === 'nuevo' ? 'nuevo' : parseInt(val, 10));
+                  }}
                   className="input-celda"
-                />
+                >
+                  <option value={0}>Seleccionar cliente...</option>
+                  {clientes.map((c) => (
+                    <option key={c.id} value={c.id}>{c.nombre}</option>
+                  ))}
+                  <option value="nuevo">+ Crear Nuevo Cliente</option>
+                </select>
               </div>
+              {clienteId === 'nuevo' && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Nombre del Nuevo Cliente *
+                  </label>
+                  <input
+                    type="text"
+                    value={nuevoClienteNombre}
+                    onChange={(e) => setNuevoClienteNombre(e.target.value)}
+                    placeholder="Nombre completo"
+                    className="input-celda"
+                  />
+                </div>
+              )}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Obra / Descripción *

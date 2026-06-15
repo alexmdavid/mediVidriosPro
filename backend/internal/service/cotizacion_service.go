@@ -41,6 +41,16 @@ func (s *CotizacionService) ObtenerTiposVidrio() ([]domain.TipoVidrio, error) {
 	return s.tipoVidrioRepo.ObtenerTodos()
 }
 
+// ListarClientes retorna la lista de clientes registrados.
+func (s *CotizacionService) ListarClientes(buscar string) ([]domain.Cliente, error) {
+	return s.clienteRepo.Listar(buscar)
+}
+
+// CrearCliente registra un nuevo cliente (Lazy Creation).
+func (s *CotizacionService) CrearCliente(c *domain.Cliente) (int, error) {
+	return s.clienteRepo.Crear(c)
+}
+
 // =============================================================
 // Motor de cubicación y cálculo de costos
 // =============================================================

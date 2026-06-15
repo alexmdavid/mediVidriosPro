@@ -35,6 +35,10 @@ func (h *CotizacionHandler) RegisterRoutes(r *mux.Router) {
 	// Tipos de vidrio
 	api.HandleFunc("/tipos-vidrio", AuthMiddleware(h.ObtenerTiposVidrio)).Methods("GET") // Protegido
 
+	// Clientes
+	api.HandleFunc("/clientes", AuthMiddleware(h.ListarClientes)).Methods("GET")
+	api.HandleFunc("/clientes", AuthMiddleware(h.CrearCliente)).Methods("POST")
+
 	// Cotizaciones
 	api.HandleFunc("/cotizaciones", AuthMiddleware(h.CrearCotizacion)).Methods("POST")
 	api.HandleFunc("/cotizaciones", AuthMiddleware(h.ListarCotizaciones)).Methods("GET")
@@ -61,6 +65,33 @@ func (h *CotizacionHandler) ObtenerTiposVidrio(w http.ResponseWriter, r *http.Re
 	}
 
 	sendJSON(w, http.StatusOK, tipos)
+}
+
+// ListarClientes retorna los clientes para el selector.
+func (h *CotizacionHandler) ListarClientes(w http.ResponseWriter, r *http.Request) {
+	buscar := r.URL.Query().Get("buscar")
+	clientes, err := h.service.ListarClientes(buscar)
+	if err != nil {
+		sendError(w, http.StatusInternalServerError, "Error al listar clientes", err.Error())
+		return
+	}
+	sendJSON(w, http.StatusOK, clientes)
+}
+
+// CrearCliente permite el registro rápido de clientes.
+func (h *CotizacionHandler) CrearCliente(w http.ResponseWriter, r *http.Request) {
+	var c domain.Cliente
+	if err := json.NewDecoder(r.Body).Decode(&c); err != nil {
+		sendError(w, http.StatusBadRequest, "JSON inválido", "")
+		return
+	}
+	id, err := h.service.CrearCliente(&c)
+	if err != nil {
+		sendError(w, http.StatusInternalServerError, "Error al crear cliente", err.Error())
+		return
+	}
+	c.ID = id
+	sendJSON(w, http.StatusCreated, c)
 }
 
 // =============================================================
