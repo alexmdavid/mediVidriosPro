@@ -18,6 +18,10 @@ type ClienteRepository interface {
 	Crear(cliente *Cliente) (int, error)
 	// ObtenerPorID retorna un cliente por su identificador.
 	ObtenerPorID(id int) (*Cliente, error)
+	// ObtenerPorEmail retorna un cliente por su email.
+	ObtenerPorEmail(email string) (*Cliente, error)
+	// ObtenerPorGoogleID retorna un cliente por su Google ID.
+	ObtenerPorGoogleID(googleID string) (*Cliente, error)
 	// Actualizar actualiza los datos de un cliente existente.
 	Actualizar(id int, cliente *Cliente) error
 	// Listar retorna todos los clientes con filtros básicos.

@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/gorilla/mux"
 
@@ -472,45 +473,84 @@ func exportarDOCX(w http.ResponseWriter, resp *domain.CotizacionResponse) {
 	w.Header().Set("Content-Type", "application/msword")
 	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"`, filename))
 
-	fecha := cot.FechaCreacion.Format("2006-01-02")
+	fecha := time.Now().Format("02 de enero de 2006")
 	var itemsHTML string
 	for i, item := range cot.Items {
 		itemsHTML += fmt.Sprintf(`
-      <tr>
-        <td style="border:1px solid black;padding:5px;text-align:center">%d</td>
-        <td style="border:1px solid black;padding:5px">%s %dx%d</td>
-        <td style="border:1px solid black;padding:5px;text-align:center">%.4f</td>
-        <td style="border:1px solid black;padding:5px;text-align:right">$%.0f</td>
-      </tr>`, i+1, strings.ToUpper(item.TipoItem), int(item.AnchoMT*100), int(item.AltoMT*100), item.AreaTotalM2, item.PrecioCalculado)
+			<tr>
+				<td style="border: 1px solid black; padding: 6px; text-align: center;">%d</td>
+				<td style="border: 1px solid black; padding: 6px;">%s - MEDIDAS: %v X %v MT</td>
+				<td style="border: 1px solid black; padding: 6px; text-align: center;">%.4f</td>
+				<td style="border: 1px solid black; padding: 6px; text-align: right;">$ %s</td>
+			</tr>`,
+			i+1,
+			strings.ToUpper(item.TipoItem),
+			item.AnchoMT,
+			item.AltoMT,
+			item.AreaTotalM2,
+			fmt.Sprintf("%.2f", item.PrecioCalculado))
 	}
 
 	html := fmt.Sprintf(`<html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word'>
 <head><meta charset="utf-8"><style>
-body{font-family:'Times New Roman',serif;margin:1in}
-h1{font-size:16pt;text-align:center}
-table{width:100%%;border-collapse:collapse;font-size:9pt}
-td,th{border:1px solid black;padding:5px}
-th{background:#f0f0f0;text-align:center;font-weight:bold}
-.empresa{font-weight:bold;font-size:12pt}
-.info{font-size:10pt}
-.firma{margin-top:40px}
-</style></head><body>
-<div class="empresa">RUBIEL ANTONIO RUIDIAZ COMAS</div>
-<div class="info">RUT: 85165741</div>
-<div class="info">Correo: rubanruic@gmail.com - Celular: 3103233594</div>
-<div class="info">CALLE 20 #28-21 DUITAMA</div>
-<p style="margin-top:15px">Duitama, %s</p>
-<p>Señor</p>
-<p style="font-weight:bold;font-size:11pt">%s</p>
-<p>Ciudad</p>
-<h1>COTIZACION</h1>
-<table><thead><tr><th>ITEMS</th><th>DETALLE</th><th>AREA EN M²</th><th>VALOR TOTAL</th></tr></thead><tbody>%s</tbody></table>
-<p><b>CONDICIONES ECONÓMICAS:</b> 60%% de anticipo al aceptar esta cotizaci&oacute;n y 40%% contra entrega.</p>
-<p><b>NO INCLUYE:</b> obras de albañiler&iacute;a.</p>
-<p><b>TIEMPO DE ENTREGA:</b> A acordar con el cliente.</p>
-<p><b>VALIDEZ OFERTA:</b> 10 d&iacute;as calendario.</p>
-<div class="firma"><p>Cordialmente,</p><br><hr style="width:200px;text-align:left"><p><b>RUBIEL ANTONIO RUIDIAZ COMAS</b></p><p>CC. 85165741</p></div>
-</body></html>`, fecha, strings.ToUpper(cot.Cliente.Nombre), itemsHTML)
+body{font-family:'Arial',sans-serif; margin: 20mm;}
+.header{font-size: 10pt; text-align: left; line-height: 1.2;}
+.destinatario{font-size: 11pt; margin-top: 20pt; line-height: 1.3;}
+.titulo{font-size: 14pt; font-weight: bold; text-align: center; margin: 25pt 0;}
+table{width: 100%%; border-collapse: collapse; font-size: 10pt;}
+th{border: 1px solid black; background-color: #f2f2f2; padding: 8px; font-weight: bold;}
+.footer{font-size: 10pt; margin-top: 30pt;}
+</style></head>
+<body>
+	<div class="header">
+		<strong>RUBIEL ANTONIO RUIDIAZ COMAS</strong><br>
+		RUT: 85165741<br>
+		Correo: rubanruic@gmail.com - Celular: 3103233594<br>
+		CALLE 20 #28-21 DUITAMA
+	</div>
+
+	<div class="destinatario">
+		Duitama, %s<br><br>
+		Señor(a):<br>
+		<strong>%s</strong><br>
+		Ciudad
+	</div>
+
+	<div class="titulo">COTIZACION</div>
+
+	<table>
+		<thead>
+			<tr>
+				<th>ITEMS</th>
+				<th>DETALLE</th>
+				<th>ÁREA EN M²</th>
+				<th>VALOR TOTAL</th>
+			</tr>
+		</thead>
+		<tbody>%s</tbody>
+		<tfoot>
+			<tr>
+				<td colspan="3" style="border: 1px solid black; padding: 6px; text-align: right; font-weight: bold;">TOTAL</td>
+				<td style="border: 1px solid black; padding: 6px; text-align: right; font-weight: bold;">$ %s</td>
+			</tr>
+		</tfoot>
+	</table>
+
+	<div class="footer">
+		<strong>CONDICIONES ECONÓMICAS:</strong> 60%% de anticipo al aceptar esta cotizaci&oacute;n y 40%% contra entrega.<br>
+		<strong>NO INCLUYE:</strong> obras de albañiler&iacute;a.<br>
+		<strong>TIEMPO DE ENTREGA:</strong> A acordar con el cliente.<br>
+		<strong>VALIDEZ OFERTA:</strong> 10 d&iacute;as calendario.<br><br><br>
+		Cordialmente,<br><br><br>
+		___________________________<br>
+		<strong>RUBIEL ANTONIO RUIDIAZ COMAS</strong><br>
+		CC. 85165741
+	</div>
+</body></html>`,
+		fecha,
+		strings.ToUpper(cot.Cliente.Nombre),
+		itemsHTML,
+		fmt.Sprintf("%.2f", cot.TotalCotizado))
 
 	w.Write([]byte("\ufeff" + html))
 }

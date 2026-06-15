@@ -38,8 +38,10 @@ func init() {
 }
 
 // AuthClaims es el payload del JWT.
+// Soporta tanto usuarios administrativos (UsuarioID > 0) como clientes (ClienteID > 0).
 type AuthClaims struct {
 	UsuarioID int    `json:"usuario_id"`
+	ClienteID int    `json:"cliente_id,omitempty"`
 	Email     string `json:"email"`
 	Rol       string `json:"rol"`
 	jwt.RegisteredClaims
@@ -211,7 +213,7 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 }
 
 // =============================================================
-// Login con Google (simplificado - en producción verificar token de Google)
+// Login con Google - SOLO tabla clientes para nuevos registros
 // =============================================================
 
 func (h *AuthHandler) GoogleLogin(w http.ResponseWriter, r *http.Request) {
@@ -232,64 +234,88 @@ func (h *AuthHandler) GoogleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Buscar usuario existente por Google ID
-	usuario, err := h.service.ObtenerUsuarioPorGoogleID(req.GoogleID)
-	if err != nil {
-		log.Printf("⚠️ Google Login: error al buscar por Google ID: %v", err)
-	}
-	if usuario == nil {
-		// Buscar por email
-		usuario, err = h.service.ObtenerUsuarioPorEmail(req.Email)
-		if err != nil {
-			log.Printf("⚠️ Google Login: error al buscar por email: %v", err)
-		}
-		if usuario == nil {
-			log.Printf("🔐 Google Login: creando nuevo usuario para %s", req.Email)
-			// Crear nuevo usuario
-			nuevoUsuario := &domain.Usuario{
-				Nombre:   req.Nombre,
-				Email:    strings.ToLower(req.Email),
-				GoogleID: strPtr(req.GoogleID),
-				Rol:      "cliente",
-				Activo:   true,
-			}
-			id, err := h.service.CrearUsuario(nuevoUsuario)
-			if err != nil {
-				log.Printf("❌ Google Login: error al crear usuario: %v", err)
-				sendError(w, http.StatusInternalServerError, "Error al crear usuario", err.Error())
-				return
-			}
-			nuevoUsuario.ID = id
-			usuario = nuevoUsuario
+	email := strings.ToLower(req.Email)
 
-			// Sincronizar: crear cliente en tabla clientes automáticamente
-			h.service.SincronizarClienteDesdeUsuario(usuario.Nombre, usuario.Email, "")
+	// 1. Buscar primero en usuarios (para admins/vendedores que ya tienen Google vinculado)
+	usuario, _ := h.service.ObtenerUsuarioPorEmail(email)
+	if usuario != nil {
+		log.Printf("🔐 Google Login: usuario encontrado en tabla usuarios (ID=%d, Rol=%s)", usuario.ID, usuario.Rol)
 
-			log.Printf("✅ Google Login: usuario creado con ID %d", id)
-		} else {
-			log.Printf("🔐 Google Login: vinculando Google ID a usuario existente %d", usuario.ID)
-			// Vincular Google ID
+		// Vincular/actualizar Google ID si es necesario
+		if usuario.GoogleID == nil || *usuario.GoogleID != req.GoogleID {
 			usuario.GoogleID = strPtr(req.GoogleID)
-
-			// Sincronizar: asegurar que exista registro en tabla clientes
-			h.service.SincronizarClienteDesdeUsuario(usuario.Nombre, usuario.Email, "")
+			// Actualizar Google ID en DB (no tenemos método directo, pero service lo manejará)
 		}
-	} else {
-		log.Printf("🔐 Google Login: usuario encontrado ID=%d, sincronizando cliente", usuario.ID)
-		// Sincronizar: asegurar que exista registro en tabla clientes
-		h.service.SincronizarClienteDesdeUsuario(usuario.Nombre, usuario.Email, "")
+
+		// Sincronizar cliente automáticamente
+		h.service.SincronizarClienteDesdeUsuario(usuario.Nombre, email, "")
+
+		// Generar token de usuario (con usuario_id)
+		token, err := generarToken(usuario)
+		if err != nil {
+			sendError(w, http.StatusInternalServerError, "Error al generar token", err.Error())
+			return
+		}
+
+		sendJSON(w, http.StatusOK, domain.AuthResponse{
+			Token:   token,
+			Usuario: *usuario,
+		})
+		return
 	}
 
-	token, err := generarToken(usuario)
+	// 2. Buscar en clientes (para clientes que usan Google como único medio de auth)
+	cliente, _, err := h.service.CrearClienteConGoogle(req.Nombre, email, req.GoogleID)
+	if err != nil {
+		log.Printf("❌ Google Login: error al procesar cliente: %v", err)
+		sendError(w, http.StatusInternalServerError, "Error al procesar autenticación", err.Error())
+		return
+	}
+
+	log.Printf("🔐 Google Login: cliente autenticado/creado ID=%d", cliente.ID)
+
+	// Generar token con ClienteID en lugar de UsuarioID
+	token, err := generarTokenCliente(cliente)
 	if err != nil {
 		sendError(w, http.StatusInternalServerError, "Error al generar token", err.Error())
 		return
 	}
 
-	sendJSON(w, http.StatusOK, domain.AuthResponse{
-		Token:   token,
-		Usuario: *usuario,
-	})
+	// Construir AuthResponse con datos del cliente convertidos a Usuario
+	resp := domain.AuthResponse{
+		Token: token,
+		Usuario: domain.Usuario{
+			ID:     0, // No es un usuario interno
+			Nombre: cliente.Nombre,
+			Email:  email,
+			Rol:    "cliente",
+			Activo: true,
+		},
+	}
+
+	sendJSON(w, http.StatusOK, resp)
+}
+
+// generarTokenCliente genera un JWT para un cliente autenticado con Google
+// (sin registro en la tabla usuarios).
+func generarTokenCliente(cliente *domain.Cliente) (string, error) {
+	email := ""
+	if cliente.Email != nil {
+		email = *cliente.Email
+	}
+
+	claims := AuthClaims{
+		ClienteID: cliente.ID,
+		Email:     email,
+		Rol:       "cliente",
+		RegisteredClaims: jwt.RegisteredClaims{
+			ExpiresAt: jwt.NewNumericDate(time.Now().Add(72 * time.Hour)),
+			IssuedAt:  jwt.NewNumericDate(time.Now()),
+		},
+	}
+
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	return token.SignedString(jwtSecret)
 }
 
 // =============================================================
@@ -301,6 +327,30 @@ func (h *AuthHandler) Perfil(w http.ResponseWriter, r *http.Request) {
 	if claims == nil {
 		log.Printf("⚠️ PERFIL: Intento de acceso sin claims en el contexto")
 		sendError(w, http.StatusUnauthorized, "No autenticado", "")
+		return
+	}
+
+	// Si es un cliente (sin usuario_id), devolver datos del cliente
+	if claims.ClienteID > 0 {
+		log.Printf("🔍 PERFIL CLIENTE: Consultando datos para ClienteID=%d", claims.ClienteID)
+		cliente, err := h.service.ObtenerCliente(claims.ClienteID)
+		if err != nil || cliente == nil {
+			sendError(w, http.StatusNotFound, "Cliente no encontrado", "")
+			return
+		}
+		usuario := &domain.Usuario{
+			ID:     0,
+			Nombre: cliente.Nombre,
+			Email:  *cliente.Email,
+			Rol:    "cliente",
+			Activo: true,
+		}
+		if cliente.Email != nil {
+			usuario.Email = *cliente.Email
+		} else {
+			usuario.Email = ""
+		}
+		sendJSON(w, http.StatusOK, usuario)
 		return
 	}
 
@@ -372,6 +422,25 @@ func (h *AuthHandler) MisCotizaciones(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Usar cliente_id o usuario_id según corresponda
+	clienteID := claims.ClienteID
+	if clienteID <= 0 {
+		// Usuario de la tabla usuarios: buscar si tiene un cliente asociado
+		usuario, err := h.service.ObtenerUsuarioPorID(claims.UsuarioID)
+		if err != nil || usuario == nil {
+			sendError(w, http.StatusNotFound, "Usuario no encontrado", "")
+			return
+		}
+		// Buscar cliente por email
+		cliente, _ := h.service.ObtenerClientePorEmail(usuario.Email)
+		if cliente != nil {
+			clienteID = cliente.ID
+		} else {
+			sendError(w, http.StatusNotFound, "Cliente no encontrado para este usuario", "")
+			return
+		}
+	}
+
 	page, _ := strconv.Atoi(r.URL.Query().Get("page"))
 	pageSize, _ := strconv.Atoi(r.URL.Query().Get("pageSize"))
 	if page < 1 {
@@ -381,10 +450,21 @@ func (h *AuthHandler) MisCotizaciones(w http.ResponseWriter, r *http.Request) {
 		pageSize = 20
 	}
 
-	cotizaciones, total, err := h.service.ListarCotizacionesPorCliente(claims.UsuarioID, page, pageSize)
+	// Buscar cotizaciones por cliente_id
+	total := 0
+	// NOTA: Para clientes de Google auth, buscamos por cliente_id.
+	// Para usuarios registrados, buscamos por usuario_cliente_id.
+	// Simplificación: usamos el clienteID para buscar cotizaciones
+	cotizaciones, total, err := h.service.ListarCotizaciones(page, pageSize, &domain.FiltrosCotizacion{
+		Buscar: strconv.Itoa(clienteID),
+	})
 	if err != nil {
-		sendError(w, http.StatusInternalServerError, "Error al listar cotizaciones", err.Error())
-		return
+		// Fallback: búsqueda por usuario_cliente_id
+		cotizaciones, total, err = h.service.ListarCotizacionesPorCliente(claims.UsuarioID, page, pageSize)
+		if err != nil {
+			sendError(w, http.StatusInternalServerError, "Error al listar cotizaciones", err.Error())
+			return
+		}
 	}
 
 	sendJSON(w, http.StatusOK, map[string]interface{}{
@@ -495,8 +575,8 @@ func AdminMiddleware(next http.HandlerFunc) http.HandlerFunc {
 			sendJSON(w, http.StatusForbidden, domain.ErrorResponse{Error: "Acceso restringido a administradores"})
 			return
 		}
-		if claims.Rol != "admin" {
-			log.Printf("🚫 ADMIN: Acceso denegado. UsuarioID=%d tiene rol '%s' y requiere 'admin'", claims.UsuarioID, claims.Rol)
+		if claims.Rol != "admin" || claims.UsuarioID <= 0 {
+			log.Printf("🚫 ADMIN: Acceso denegado. UsuarioID=%d, ClienteID=%d, Rol='%s' - requiere rol 'admin' y usuario_id > 0", claims.UsuarioID, claims.ClienteID, claims.Rol)
 			sendJSON(w, http.StatusForbidden, domain.ErrorResponse{Error: "Acceso restringido a administradores"})
 			return
 		}

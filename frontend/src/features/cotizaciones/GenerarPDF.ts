@@ -54,29 +54,29 @@ export function generarCotizacionPDF(respuesta: CotizacionResponse): void {
   const doc = new jsPDF()
 
   const pageWidth = doc.internal.pageSize.getWidth()
-  const margin = 20
+  const margin = 20 // 20mm de margen
   const font = 'helvetica'
 
   let y = margin
 
   // =============================================================
-  // ENCABEZADO - TEXTO PLANO ALINEDO A LA IZQUIERDA
-  // Línea 1: NEGRITA TAMAÑO DESTACADO
+  // ENCABEZADO - TEXTO PLANO ALINEADO A LA IZQUIERDA
+  // Tamaños: Encabezado empresa 10pt, según especificación
   // =============================================================
 
   doc.setFont(font, 'bold')
-  doc.setFontSize(12)
+  doc.setFontSize(10)
   doc.text(EMPRESA.nombre, margin, y)
-  y += 6
+  y += 5
 
   doc.setFont(font, 'normal')
   doc.setFontSize(10)
   doc.text(`RUT: ${EMPRESA.rut}`, margin, y)
-  y += 5
+  y += 4
   doc.text(`Correo: ${EMPRESA.correo} \u2013 Celular: ${EMPRESA.celular}`, margin, y)
-  y += 5
+  y += 4
   doc.text(EMPRESA.direccion, margin, y)
-  y += 10
+  y += 8
 
   // =============================================================
   // FECHA: "Duitama, 20 de marzo de 2026"
@@ -93,10 +93,11 @@ export function generarCotizacionPDF(respuesta: CotizacionResponse): void {
   doc.setFont(font, 'normal')
   doc.setFontSize(11)
   doc.text(fechaFormateada, margin, y)
-  y += 12
+  y += 10
 
   // =============================================================
   // DATOS DEL CLIENTE (idéntico al formato)
+  // Tamaño: 11pt según especificación
   // =============================================================
 
   doc.setFont(font, 'normal')
@@ -112,22 +113,21 @@ export function generarCotizacionPDF(respuesta: CotizacionResponse): void {
   doc.setFont(font, 'normal')
   doc.setFontSize(11)
   doc.text('Ciudad', margin, y)
-  y += 12
+  y += 10
 
   // =============================================================
-  // TÍTULO: COTIZACION (centrado, negrita, espaciado)
+  // TÍTULO: COTIZACION (centrado, 14pt negrita, ANTES de la tabla)
   // =============================================================
 
   doc.setFont(font, 'bold')
-  doc.setFontSize(16)
+  doc.setFontSize(14)
   doc.text('COTIZACION', pageWidth / 2, y, { align: 'center' })
-  y += 12
+  y += 10
 
   // =============================================================
   // TABLA DE ITEMS - ESTRUCTURA EXACTA
   // Columnas: ITEMS | DETALLE | AREA EN M² | VALOR TOTAL
-  // Para servicios: Área muestra "VALOR METRO" y el precio/m en la celda
-  // Para productos: Área muestra el metraje
+  // Texto tabla: 10pt
   // =============================================================
 
   const items = cotizacion.items || []
@@ -171,7 +171,7 @@ export function generarCotizacionPDF(respuesta: CotizacionResponse): void {
     // El área: si es servicio mostramos VALOR METRO + precio unitario
     let areaStr = ''
     if (esServicio) {
-      areaStr = `VALOR METRO\n$${formatMoneda(item.precio_unitario_m2)}`
+      areaStr = `VALOR METRO\n${formatMoneda(item.precio_unitario_m2)}`
     } else {
       areaStr = item.area_total_m2.toFixed(0)
     }
@@ -191,7 +191,7 @@ export function generarCotizacionPDF(respuesta: CotizacionResponse): void {
     body: tableData as string[][],
     theme: 'grid',
     styles: {
-      fontSize: 9,
+      fontSize: 10,
       cellPadding: 4,
       font: font,
       lineColor: [0, 0, 0],
@@ -202,7 +202,7 @@ export function generarCotizacionPDF(respuesta: CotizacionResponse): void {
       fillColor: [255, 255, 255],
       textColor: [0, 0, 0],
       fontStyle: 'bold',
-      fontSize: 9,
+      fontSize: 10,
       halign: 'center',
       lineColor: [0, 0, 0],
       lineWidth: 0.2,
@@ -221,28 +221,28 @@ export function generarCotizacionPDF(respuesta: CotizacionResponse): void {
   })
 
   // Actualizar Y después de la tabla
-  y = (doc as jsPDF & { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 12
+  y = (doc as jsPDF & { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 10
 
   // =============================================================
-  // BLOQUE INFERIOR DE CONDICIONES (idéntico en texto y espaciado)
+  // BLOQUE INFERIOR DE CONDICIONES (10pt, idéntico en texto y espaciado)
   // =============================================================
 
   doc.setFont(font, 'bold')
   doc.setFontSize(10)
   doc.text('CONDICIONES ECON\u00d3MICAS: 60% de anticipo al aceptar esta cotizaci\u00f3n y 40% contra entrega.', margin, y)
-  y += 7
+  y += 6
 
   doc.setFont(font, 'bold')
   doc.text('NO INCLUYE: obras de alba\u00f1iler\u00eda.', margin, y)
-  y += 7
+  y += 6
 
   doc.setFont(font, 'bold')
   doc.text('TIEMPO DE ENTREGA: A acordar con el cliente.', margin, y)
-  y += 7
+  y += 6
 
   doc.setFont(font, 'bold')
   doc.text('VALIDEZ OFERTA: 10 d\u00edas calendario.', margin, y)
-  y += 14
+  y += 12
 
   // =============================================================
   // FIRMA
@@ -251,7 +251,7 @@ export function generarCotizacionPDF(respuesta: CotizacionResponse): void {
   doc.setFont(font, 'normal')
   doc.setFontSize(11)
   doc.text('Cordialmente,', margin, y)
-  y += 20
+  y += 18
 
   // Línea de firma
   doc.setDrawColor(0)

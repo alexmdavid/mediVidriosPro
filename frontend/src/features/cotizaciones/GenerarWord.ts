@@ -83,40 +83,40 @@ export function generarCotizacionWord(respuesta: CotizacionResponse): void {
     <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
     <head><meta charset='utf-8'><title>Cotizacion</title>
     <style>
-      body { font-family: Arial, Helvetica, sans-serif; margin: 1in; }
-      .empresa-line1 { font-weight: bold; font-size: 12pt; margin-bottom: 2px; }
+      body { font-family: Arial, Helvetica, sans-serif; margin: 20mm; }
+      .empresa-line1 { font-weight: bold; font-size: 10pt; margin-bottom: 2px; }
       .info-line { font-size: 10pt; margin-bottom: 2px; }
-      .date-line { font-size: 11pt; margin-top: 12px; margin-bottom: 12px; }
+      .date-line { font-size: 11pt; margin-top: 10px; margin-bottom: 10px; }
       .cliente-line { font-size: 11pt; }
       .cliente-nombre { font-weight: bold; font-size: 11pt; }
-      .title { font-weight: bold; font-size: 16pt; text-align: center; margin: 20px 0; }
-      table { width: 100%; border-collapse: collapse; margin: 20px 0; font-size: 9pt; }
+      .title { font-weight: bold; font-size: 14pt; text-align: center; margin: 15px 0; }
+      table { width: 100%; border-collapse: collapse; margin: 15px 0; font-size: 10pt; }
       table th, table td { border: 1px solid black; padding: 5px; vertical-align: top; }
       table th { text-align: center; font-weight: bold; }
       .conditions { font-size: 10pt; }
       .conditions p { margin: 4px 0; }
-      .firma { margin-top: 40px; }
+      .firma { margin-top: 30px; }
     </style>
     </head>
     <body>
-      <!-- ENCABEZADO (TEXTO PLANO ALINEADO A LA IZQUIERDA) -->
+      <!-- ENCABEZADO (TEXTO PLANO ALINEADO A LA IZQUIERDA, 10pt) -->
       <div class="empresa-line1">${EMPRESA.nombre}</div>
       <div class="info-line">RUT: ${EMPRESA.rut}</div>
       <div class="info-line">Correo: ${EMPRESA.correo} – Celular: ${EMPRESA.celular}</div>
       <div class="info-line">${EMPRESA.direccion}</div>
       
-      <!-- FECHA: Duitama, 20 de marzo de 2026 -->
+      <!-- FECHA: Duitama, 20 de marzo de 2026 (11pt) -->
       <div class="date-line">Duitama, ${fecha}</div>
       
-      <!-- DATOS DEL CLIENTE -->
+      <!-- DATOS DEL CLIENTE (11pt) -->
       <div class="cliente-line">Señor</div>
       <div class="cliente-nombre">${(cotizacion.cliente?.nombre || 'Cliente').toUpperCase()}</div>
       <div class="cliente-line">Ciudad</div>
 
-      <!-- TÍTULO CENTRADO -->
+      <!-- TÍTULO CENTRADO (14pt, negrita, ESTRICTAMENTE ANTES DE LA TABLA) -->
       <div class="title">COTIZACION</div>
       
-      <!-- TABLA -->
+      <!-- TABLA (10pt) -->
       <table>
         <thead>
           <tr>
@@ -131,7 +131,7 @@ export function generarCotizacionWord(respuesta: CotizacionResponse): void {
         </tbody>
       </table>
 
-      <!-- BLOQUE INFERIOR DE CONDICIONES -->
+      <!-- BLOQUE INFERIOR DE CONDICIONES (10pt, negrita) -->
       <div class="conditions">
         <p><b>CONDICIONES ECONÓMICAS:</b> 60% de anticipo al aceptar esta cotización y 40% contra entrega.</p>
         <p><b>NO INCLUYE:</b> obras de albañilería.</p>

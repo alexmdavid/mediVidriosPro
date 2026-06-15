@@ -43,7 +43,7 @@ func (s *CotizacionService) ObtenerTiposVidrio() ([]domain.TipoVidrio, error) {
 	return s.tipoVidrioRepo.ObtenerTodos()
 }
 
-// ListarClientes retorna la lista de clientes registrados.
+// ListarClienwebtes retorna la lista de clientes registrados.
 func (s *CotizacionService) ListarClientes(page, pageSize int, buscar string) ([]domain.Cliente, int, error) {
 	if page < 1 {
 		page = 1
@@ -390,6 +390,63 @@ func (s *CotizacionService) ListarCotizacionesPorCliente(usuarioID, page, pageSi
 // ResponderCotizacion permite al cliente aceptar/rechazar una cotización.
 func (s *CotizacionService) ResponderCotizacion(cotizacionID int, aceptada bool, notas string) error {
 	return s.cotizacionRepo.ResponderCotizacion(cotizacionID, aceptada, notas)
+}
+
+// ObtenerClientePorGoogleID retorna un cliente por su Google ID.
+func (s *CotizacionService) ObtenerClientePorGoogleID(googleID string) (*domain.Cliente, error) {
+	return s.clienteRepo.ObtenerPorGoogleID(googleID)
+}
+
+// ObtenerClientePorEmail retorna un cliente por su email.
+func (s *CotizacionService) ObtenerClientePorEmail(email string) (*domain.Cliente, error) {
+	return s.clienteRepo.ObtenerPorEmail(email)
+}
+
+// CrearClienteConGoogle crea o actualiza un cliente autenticado con Google
+// y retorna el cliente. SOLO opera sobre la tabla clientes, NUNCA en usuarios.
+func (s *CotizacionService) CrearClienteConGoogle(nombre, email, googleID string) (*domain.Cliente, bool, error) {
+	// 1. Buscar por Google ID primero
+	cliente, err := s.clienteRepo.ObtenerPorGoogleID(googleID)
+	if err != nil {
+		return nil, false, fmt.Errorf("error al buscar cliente por Google ID: %w", err)
+	}
+	if cliente != nil {
+		log.Printf("✅ GOOGLE AUTH: Cliente encontrado por Google ID %s (ID: %d)", googleID, cliente.ID)
+		return cliente, false, nil
+	}
+
+	// 2. Buscar por email
+	if email != "" {
+		cliente, err = s.clienteRepo.ObtenerPorEmail(email)
+		if err != nil {
+			return nil, false, fmt.Errorf("error al buscar cliente por email: %w", err)
+		}
+		if cliente != nil {
+			// Vincular Google ID al cliente existente
+			cliente.GoogleID = &googleID
+			// Actualizar nombre si es diferente
+			if cliente.Nombre != nombre {
+				cliente.Nombre = nombre
+			}
+			_ = s.clienteRepo.Actualizar(cliente.ID, cliente)
+			log.Printf("✅ GOOGLE AUTH: Google ID vinculado a cliente existente %d (email: %s)", cliente.ID, email)
+			return cliente, false, nil
+		}
+	}
+
+	// 3. No existe, crear nuevo cliente
+	nuevo := &domain.Cliente{
+		Nombre:   nombre,
+		Email:    stringPtr(email),
+		GoogleID: &googleID,
+	}
+	id, err := s.clienteRepo.Crear(nuevo)
+	if err != nil {
+		return nil, false, fmt.Errorf("error al crear cliente desde Google: %w", err)
+	}
+	nuevo.ID = id
+	log.Printf("✅ GOOGLE AUTH: Nuevo cliente creado desde Google ID %s (ID: %d)", googleID, id)
+	return nuevo, true, nil
 }
 
 // SincronizarClienteDesdeUsuario asegura que exista un registro en la tabla clientes

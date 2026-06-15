@@ -199,8 +199,8 @@ type ClienteRepository struct {
 // Crear inserta un nuevo cliente y retorna su ID.
 func (r *ClienteRepository) Crear(cliente *domain.Cliente) (int, error) {
 	query := `
-		INSERT INTO clientes (nombre, telefono, email, direccion, notas)
-		VALUES ($1, $2, $3, $4, $5)
+		INSERT INTO clientes (nombre, telefono, email, direccion, notas, google_id)
+		VALUES ($1, $2, $3, $4, $5, $6)
 		RETURNING id
 	`
 
@@ -211,6 +211,7 @@ func (r *ClienteRepository) Crear(cliente *domain.Cliente) (int, error) {
 		cliente.Email,
 		cliente.Direccion,
 		cliente.Notas,
+		cliente.GoogleID,
 	).Scan(&id)
 
 	if err != nil {
@@ -246,10 +247,54 @@ func (r *ClienteRepository) Actualizar(id int, cliente *domain.Cliente) error {
 	return nil
 }
 
+// ObtenerPorEmail retorna un cliente por su email.
+func (r *ClienteRepository) ObtenerPorEmail(email string) (*domain.Cliente, error) {
+	query := `
+		SELECT id, nombre, telefono, email, direccion, notas, google_id, created_at, updated_at
+		FROM clientes
+		WHERE email = $1
+	`
+
+	var c domain.Cliente
+	err := r.db.QueryRow(query, email).Scan(
+		&c.ID, &c.Nombre, &c.Telefono, &c.Email,
+		&c.Direccion, &c.Notas, &c.GoogleID, &c.CreatedAt, &c.UpdatedAt,
+	)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("error al obtener cliente por email: %w", err)
+	}
+	return &c, nil
+}
+
+// ObtenerPorGoogleID retorna un cliente por su Google ID.
+func (r *ClienteRepository) ObtenerPorGoogleID(googleID string) (*domain.Cliente, error) {
+	query := `
+		SELECT id, nombre, telefono, email, direccion, notas, google_id, created_at, updated_at
+		FROM clientes
+		WHERE google_id = $1
+	`
+
+	var c domain.Cliente
+	err := r.db.QueryRow(query, googleID).Scan(
+		&c.ID, &c.Nombre, &c.Telefono, &c.Email,
+		&c.Direccion, &c.Notas, &c.GoogleID, &c.CreatedAt, &c.UpdatedAt,
+	)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("error al obtener cliente por Google ID: %w", err)
+	}
+	return &c, nil
+}
+
 // ObtenerPorID retorna un cliente por su ID.
 func (r *ClienteRepository) ObtenerPorID(id int) (*domain.Cliente, error) {
 	query := `
-		SELECT id, nombre, telefono, email, direccion, notas, created_at, updated_at
+		SELECT id, nombre, telefono, email, direccion, notas, google_id, created_at, updated_at
 		FROM clientes
 		WHERE id = $1
 	`
@@ -257,7 +302,7 @@ func (r *ClienteRepository) ObtenerPorID(id int) (*domain.Cliente, error) {
 	var c domain.Cliente
 	err := r.db.QueryRow(query, id).Scan(
 		&c.ID, &c.Nombre, &c.Telefono, &c.Email,
-		&c.Direccion, &c.Notas, &c.CreatedAt, &c.UpdatedAt,
+		&c.Direccion, &c.Notas, &c.GoogleID, &c.CreatedAt, &c.UpdatedAt,
 	)
 	if err == sql.ErrNoRows {
 		return nil, nil
@@ -371,7 +416,7 @@ func (r *CotizacionRepository) Crear(cotizacion *domain.Cotizacion, items []doma
 		for _, item := range items {
 			_, err = tx.Exec(queryItems,
 				cotizacionID,
-				item.TipoItem,
+n dos				item.TipoItem,
 				item.AnchoMT,
 				item.AltoMT,
 				item.Cantidad,

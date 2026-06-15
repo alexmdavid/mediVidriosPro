@@ -27,6 +27,7 @@ type Cliente struct {
 	Email     *string   `json:"email,omitempty"`
 	Direccion *string   `json:"direccion,omitempty"`
 	Notas     *string   `json:"notas,omitempty"`
+	GoogleID  *string   `json:"-"` // No se expone en JSON
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
 }
