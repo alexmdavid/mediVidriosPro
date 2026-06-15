@@ -317,6 +317,7 @@ func (r *CotizacionRepository) Crear(cotizacion *domain.Cotizacion, items []doma
 
 // ObtenerPorID retorna una cotización completa con items y datos del cliente.
 func (r *CotizacionRepository) ObtenerPorID(id int) (*domain.Cotizacion, error) {
+	log.Printf("🔍 REPO: Buscando cotización por ID en DB: %d", id)
 	// Consultar encabezado con datos del cliente
 	queryCot := `
 		SELECT c.id, c.cliente_id, c.descripcion_obra, c.estado, c.total_cotizado,
@@ -358,6 +359,7 @@ func (r *CotizacionRepository) ObtenerPorID(id int) (*domain.Cotizacion, error) 
 
 	rows, err := r.db.Query(queryItems, id)
 	if err != nil {
+		log.Printf("❌ REPO: Error DB al consultar items de cotización %d: %v", id, err)
 		return nil, fmt.Errorf("error al consultar items de cotización %d: %w", id, err)
 	}
 	defer rows.Close()
@@ -375,10 +377,12 @@ func (r *CotizacionRepository) ObtenerPorID(id int) (*domain.Cotizacion, error) 
 			&item.TipoVidrio.EspesorMM, &item.TipoVidrio.PrecioM2,
 		); err != nil {
 			return nil, fmt.Errorf("error al escanear item: %w", err)
+			log.Printf("❌ REPO: Error al escanear item para cotización %d: %v", id, err)
 		}
 		cot.Items = append(cot.Items, item)
 	}
 
+	log.Printf("✅ REPO: Cotización %d encontrada con %d items", id, len(cot.Items))
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("error al iterar items: %w", err)
 	}

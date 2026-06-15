@@ -3,6 +3,7 @@ package handler
 import (
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
 	"strconv"
 	"strings"
@@ -32,15 +33,19 @@ func (h *CotizacionHandler) RegisterRoutes(r *mux.Router) {
 	api := r.PathPrefix("/api").Subrouter()
 
 	// Tipos de vidrio
-	api.HandleFunc("/tipos-vidrio", h.ObtenerTiposVidrio).Methods("GET")
+	api.HandleFunc("/tipos-vidrio", AuthMiddleware(h.ObtenerTiposVidrio)).Methods("GET") // Protegido
 
 	// Cotizaciones
-	api.HandleFunc("/cotizaciones", h.CrearCotizacion).Methods("POST")
-	api.HandleFunc("/cotizaciones", h.ListarCotizaciones).Methods("GET")
-	api.HandleFunc("/cotizaciones/{id:[0-9]+}", h.ObtenerCotizacion).Methods("GET")
+	api.HandleFunc("/cotizaciones", AuthMiddleware(h.CrearCotizacion)).Methods("POST")
+	api.HandleFunc("/cotizaciones", AuthMiddleware(h.ListarCotizaciones)).Methods("GET")
+	api.HandleFunc("/cotizaciones/{id:[0-9]+}", AuthMiddleware(h.ObtenerCotizacion)).Methods("GET")
+	// Rutas de administración de cotizaciones (movidas de auth_handler)
+	api.HandleFunc("/cotizaciones/{id:[0-9]+}", AuthMiddleware(AdminMiddleware(h.ActualizarCotizacion))).Methods("PUT")
+	api.HandleFunc("/cotizaciones/{id:[0-9]+}", AuthMiddleware(AdminMiddleware(h.EliminarCotizacion))).Methods("DELETE")
+	api.HandleFunc("/cotizaciones/{id:[0-9]+}/asignar", AuthMiddleware(AdminMiddleware(h.AsignarCotizacion))).Methods("PUT")
 
 	// Preview de cálculo (sin persistir)
-	api.HandleFunc("/cotizaciones/preview", h.PreviewCotizacion).Methods("POST")
+	api.HandleFunc("/cotizaciones/preview", AuthMiddleware(h.PreviewCotizacion)).Methods("POST") // Protegido
 }
 
 // =============================================================
@@ -111,11 +116,11 @@ func (h *CotizacionHandler) PreviewCotizacion(w http.ResponseWriter, r *http.Req
 func (h *CotizacionHandler) ObtenerCotizacion(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	id, err := strconv.Atoi(vars["id"])
+	log.Printf("🔍 HANDLER: Recibida petición GET /api/cotizaciones/%d", id)
 	if err != nil {
 		sendError(w, http.StatusBadRequest, "ID inválido", err.Error())
 		return
 	}
-
 	resp, err := h.service.ObtenerCotizacion(id)
 	if err != nil {
 		sendError(w, http.StatusNotFound, "Cotización no encontrada", err.Error())
@@ -169,7 +174,85 @@ func (h *CotizacionHandler) ListarCotizaciones(w http.ResponseWriter, r *http.Re
 }
 
 // =============================================================
-// Funciones auxiliares de respuesta HTTP
+// Admin: Actualizar cotización (MOVIDO DE AUTH_HANDLER)
+// =============================================================
+
+func (h *CotizacionHandler) ActualizarCotizacion(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	id, err := strconv.Atoi(vars["id"])
+	if err != nil {
+		sendError(w, http.StatusBadRequest, "ID inválido", "")
+		return
+	}
+
+	var req domain.ActualizarCotizacionRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		sendError(w, http.StatusBadRequest, "JSON inválido", err.Error())
+		return
+	}
+
+	if err := h.service.ActualizarCotizacion(id, &req); err != nil {
+		sendError(w, http.StatusInternalServerError, "Error al actualizar cotización", err.Error())
+		return
+	}
+
+	sendJSON(w, http.StatusOK, map[string]string{"mensaje": "Cotización actualizada"})
+}
+
+// =============================================================
+// Admin: Eliminar cotización (MOVIDO DE AUTH_HANDLER)
+// =============================================================
+
+func (h *CotizacionHandler) EliminarCotizacion(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	id, err := strconv.Atoi(vars["id"])
+	if err != nil {
+		sendError(w, http.StatusBadRequest, "ID inválido", "")
+		return
+	}
+
+	if err := h.service.EliminarCotizacion(id); err != nil {
+		sendError(w, http.StatusInternalServerError, "Error al eliminar cotización", err.Error())
+		return
+	}
+
+	sendJSON(w, http.StatusOK, map[string]string{"mensaje": "Cotización eliminada"})
+}
+
+// =============================================================
+// Admin: Asignar cotización a cliente (MOVIDO DE AUTH_HANDLER)
+// =============================================================
+
+func (h *CotizacionHandler) AsignarCotizacion(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	id, err := strconv.Atoi(vars["id"])
+	if err != nil {
+		sendError(w, http.StatusBadRequest, "ID inválido", "")
+		return
+	}
+
+	var req struct {
+		UsuarioClienteID int `json:"usuario_cliente_id"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		sendError(w, http.StatusBadRequest, "JSON inválido", err.Error())
+		return
+	}
+
+	updateReq := &domain.ActualizarCotizacionRequest{
+		UsuarioClienteID: &req.UsuarioClienteID,
+	}
+
+	if err := h.service.ActualizarCotizacion(id, updateReq); err != nil {
+		sendError(w, http.StatusInternalServerError, "Error al asignar cotización", err.Error())
+		return
+	}
+
+	sendJSON(w, http.StatusOK, map[string]string{"mensaje": "Cotización asignada al cliente"})
+}
+
+// =============================================================
+// Funciones auxiliares de respuesta HTTP (copiadas de auth_handler para evitar dependencia circular)
 // =============================================================
 
 // sendJSON envía una respuesta JSON con el código de estado dado.

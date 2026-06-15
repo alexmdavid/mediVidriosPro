@@ -2,6 +2,7 @@ package service
 
 import (
 	"fmt"
+	"log"
 	"math"
 	"strings"
 
@@ -249,15 +250,18 @@ func (s *CotizacionService) CrearCotizacion(req *domain.CrearCotizacionRequest) 
 
 // ObtenerCotizacion retorna una cotización completa por ID.
 func (s *CotizacionService) ObtenerCotizacion(id int) (*domain.CotizacionResponse, error) {
+	log.Printf("🔍 SERVICE: Intentando obtener cotización con ID: %d", id)
 	if id <= 0 {
 		return nil, fmt.Errorf("ID de cotización inválido: %d", id)
 	}
 
 	cotizacion, err := s.cotizacionRepo.ObtenerPorID(id)
 	if err != nil {
+		log.Printf("❌ SERVICE: Error del repositorio al obtener cotización %d: %v", id, err)
 		return nil, fmt.Errorf("error al obtener cotización: %w", err)
 	}
 	if cotizacion == nil {
+		log.Printf("⚠️ SERVICE: Cotización con ID %d no encontrada en el repositorio", id)
 		return nil, fmt.Errorf("la cotización con ID %d no existe", id)
 	}
 

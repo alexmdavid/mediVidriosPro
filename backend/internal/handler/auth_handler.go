@@ -66,11 +66,6 @@ func (h *AuthHandler) RegisterRoutes(r *mux.Router) {
 	api.HandleFunc("/auth/usuarios", AuthMiddleware(AdminMiddleware(h.ListarUsuarios))).Methods("GET")
 	api.HandleFunc("/auth/usuarios/{id:[0-9]+}", AuthMiddleware(AdminMiddleware(h.EliminarUsuario))).Methods("DELETE")
 
-	// Admin: CRUD cotizaciones
-	api.HandleFunc("/cotizaciones/{id:[0-9]+}", AuthMiddleware(AdminMiddleware(h.ActualizarCotizacion))).Methods("PUT")
-	api.HandleFunc("/cotizaciones/{id:[0-9]+}", AuthMiddleware(AdminMiddleware(h.EliminarCotizacion))).Methods("DELETE")
-	api.HandleFunc("/cotizaciones/{id:[0-9]+}/asignar", AuthMiddleware(AdminMiddleware(h.AsignarCotizacion))).Methods("PUT")
-
 	// Cliente: sus cotizaciones
 	api.HandleFunc("/mis-cotizaciones", AuthMiddleware(h.MisCotizaciones)).Methods("GET")
 	api.HandleFunc("/cotizaciones/{id:[0-9]+}/responder", AuthMiddleware(h.ResponderCotizacion)).Methods("PUT")
@@ -344,84 +339,6 @@ func (h *AuthHandler) EliminarUsuario(w http.ResponseWriter, r *http.Request) {
 	}
 
 	sendJSON(w, http.StatusOK, map[string]string{"mensaje": "Usuario eliminado"})
-}
-
-// =============================================================
-// Admin: Actualizar cotización
-// =============================================================
-
-func (h *AuthHandler) ActualizarCotizacion(w http.ResponseWriter, r *http.Request) {
-	vars := mux.Vars(r)
-	id, err := strconv.Atoi(vars["id"])
-	if err != nil {
-		sendError(w, http.StatusBadRequest, "ID inválido", "")
-		return
-	}
-
-	var req domain.ActualizarCotizacionRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		sendError(w, http.StatusBadRequest, "JSON inválido", err.Error())
-		return
-	}
-
-	if err := h.service.ActualizarCotizacion(id, &req); err != nil {
-		sendError(w, http.StatusInternalServerError, "Error al actualizar cotización", err.Error())
-		return
-	}
-
-	sendJSON(w, http.StatusOK, map[string]string{"mensaje": "Cotización actualizada"})
-}
-
-// =============================================================
-// Admin: Eliminar cotización
-// =============================================================
-
-func (h *AuthHandler) EliminarCotizacion(w http.ResponseWriter, r *http.Request) {
-	vars := mux.Vars(r)
-	id, err := strconv.Atoi(vars["id"])
-	if err != nil {
-		sendError(w, http.StatusBadRequest, "ID inválido", "")
-		return
-	}
-
-	if err := h.service.EliminarCotizacion(id); err != nil {
-		sendError(w, http.StatusInternalServerError, "Error al eliminar cotización", err.Error())
-		return
-	}
-
-	sendJSON(w, http.StatusOK, map[string]string{"mensaje": "Cotización eliminada"})
-}
-
-// =============================================================
-// Admin: Asignar cotización a cliente
-// =============================================================
-
-func (h *AuthHandler) AsignarCotizacion(w http.ResponseWriter, r *http.Request) {
-	vars := mux.Vars(r)
-	id, err := strconv.Atoi(vars["id"])
-	if err != nil {
-		sendError(w, http.StatusBadRequest, "ID inválido", "")
-		return
-	}
-
-	var req struct {
-		UsuarioClienteID int `json:"usuario_cliente_id"`
-	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		sendError(w, http.StatusBadRequest, "JSON inválido", err.Error())
-		return
-	}
-
-	updateReq := &domain.ActualizarCotizacionRequest{
-		UsuarioClienteID: &req.UsuarioClienteID,
-	}
-
-	if err := h.service.ActualizarCotizacion(id, updateReq); err != nil {
-		sendError(w, http.StatusInternalServerError, "Error al asignar cotización", err.Error())
-		return
-	}
-
-	sendJSON(w, http.StatusOK, map[string]string{"mensaje": "Cotización asignada al cliente"})
 }
 
 // =============================================================
