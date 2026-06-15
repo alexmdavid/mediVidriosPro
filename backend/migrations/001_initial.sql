@@ -83,11 +83,11 @@ COMMENT ON COLUMN items_cotizacion.precio_calculado IS 'Calculado: area_total_m2
 COMMENT ON COLUMN items_cotizacion.notas_diseno IS 'Notas de diseño que reemplazan los dibujos de la libreta';
 
 -- Índices para rendimiento
-CREATE INDEX idx_cotizaciones_cliente ON cotizaciones(cliente_id);
-CREATE INDEX idx_cotizaciones_estado ON cotizaciones(estado);
-CREATE INDEX idx_cotizaciones_fecha ON cotizaciones(fecha_creacion DESC);
-CREATE INDEX idx_items_cotizacion_cotizacion ON items_cotizacion(cotizacion_id);
-CREATE INDEX idx_items_cotizacion_tipo_vidrio ON items_cotizacion(tipo_vidrio_id);
+CREATE INDEX IF NOT EXISTS idx_cotizaciones_cliente ON cotizaciones(cliente_id);
+CREATE INDEX IF NOT EXISTS idx_cotizaciones_estado ON cotizaciones(estado);
+CREATE INDEX IF NOT EXISTS idx_cotizaciones_fecha ON cotizaciones(fecha_creacion DESC);
+CREATE INDEX IF NOT EXISTS idx_items_cotizacion_cotizacion ON items_cotizacion(cotizacion_id);
+CREATE INDEX IF NOT EXISTS idx_items_cotizacion_tipo_vidrio ON items_cotizacion(tipo_vidrio_id);
 
 -- =============================================================
 -- Datos iniciales: Tipos de vidrio comunes
