@@ -392,6 +392,39 @@ func (s *CotizacionService) ResponderCotizacion(cotizacionID int, aceptada bool,
 	return s.cotizacionRepo.ResponderCotizacion(cotizacionID, aceptada, notas)
 }
 
+// SincronizarClienteDesdeUsuario asegura que exista un registro en la tabla clientes
+// cuando un usuario se registra o inicia sesión con Google.
+// Esto permite que los clientes auto-registrados aparezcan en el selector del admin.
+func (s *CotizacionService) SincronizarClienteDesdeUsuario(nombre, email, telefono string) {
+	// Buscar si ya existe un cliente con ese email
+	if email != "" {
+		clientes, _, err := s.clienteRepo.Listar(1, 5, email)
+		if err == nil && len(clientes) > 0 {
+			// Ya existe un cliente con este email, actualizar nombre si es necesario
+			cliente := clientes[0]
+			if cliente.Nombre != nombre {
+				cliente.Nombre = nombre
+				_ = s.clienteRepo.Actualizar(cliente.ID, &cliente)
+			}
+			log.Printf("✅ SYNC: Cliente existente actualizado desde usuario '%s' (email: %s)", nombre, email)
+			return
+		}
+	}
+
+	// No existe, crear nuevo cliente
+	cliente := &domain.Cliente{
+		Nombre:   nombre,
+		Email:    stringPtr(email),
+		Telefono: stringPtr(telefono),
+	}
+	_, err := s.clienteRepo.Crear(cliente)
+	if err != nil {
+		log.Printf("⚠️ SYNC: Error al crear cliente desde usuario '%s': %v", nombre, err)
+	} else {
+		log.Printf("✅ SYNC: Cliente creado automáticamente desde usuario '%s' (email: %s)", nombre, email)
+	}
+}
+
 // NotificarCotizacionEnviada envía un correo al cliente cuando la cotización cambia a "enviada".
 func (s *CotizacionService) NotificarCotizacionEnviada(cotizacionID int) error {
 	cot, err := s.cotizacionRepo.ObtenerPorID(cotizacionID)
@@ -416,6 +449,14 @@ func (s *CotizacionService) NotificarCotizacionEnviada(cotizacionID int) error {
 // =============================================================
 // Funciones auxiliares
 // =============================================================
+
+// stringPtr convierte un string a *string, retorna nil si está vacío.
+func stringPtr(s string) *string {
+	if s == "" {
+		return nil
+	}
+	return &s
+}
 
 // formatearMoneda formatea un valor numérico como moneda local.
 func formatearMoneda(valor float64) string {

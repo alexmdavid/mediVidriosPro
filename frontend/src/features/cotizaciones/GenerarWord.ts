@@ -1,5 +1,6 @@
 // =============================================================
-// Generación de Word (DOC) de cotización con formato exacto
+// Generación de Word (.doc) de cotización
+// FORMATO EXACTO: idéntico al PDF y al formato de referencia
 // =============================================================
 
 import type { CotizacionResponse } from './types'
@@ -13,13 +14,16 @@ const EMPRESA = {
 }
 
 function formatMoneda(valor: number): string {
-  const formatter = new Intl.NumberFormat('es-CO', {
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  });
-  let result = formatter.format(valor);
-  if (valor >= 1000000) result = result.replace('.', "'");
-  return '$' + result;
+  if (valor === 0) return '$0'
+  const entero = Math.round(valor)
+  const s = entero.toString()
+  if (entero >= 1000000) {
+    const millones = Math.floor(entero / 1000000)
+    const resto = entero % 1000000
+    if (resto === 0) return `$${millones}'000.000`
+    return `$${millones}'${resto.toString().padStart(6, '0').replace(/\B(?=(\d{3})+(?!\d))/g, '.')}`
+  }
+  return '$' + s.replace(/\B(?=(\d{3})+(?!\d))/g, '.')
 }
 
 export function generarCotizacionWord(respuesta: CotizacionResponse): void {
@@ -30,21 +34,47 @@ export function generarCotizacionWord(respuesta: CotizacionResponse): void {
 
   const items = cotizacion.items || [];
   const htmlItems = items.map((item, index) => {
-    const detalle = item.notas_diseno 
-      ? item.notas_diseno.split('\n').filter(l => l.trim()).map(l => `• ${l.trim()}`).join('<br>')
-      : `• ${item.tipo_item.toUpperCase()}${item.tipo_vidrio ? ` ${item.tipo_vidrio.nombre.toUpperCase()}` : ''}`;
+    let detalle = ''
+    if (item.notas_diseno) {
+      const lineas = item.notas_diseno.split('\n').filter(l => l.trim())
+      detalle = lineas.map(l => `• ${l.trim()}`).join('<br>')
+    } else {
+      detalle = `• ${item.tipo_item.toUpperCase()}`
+      if (item.tipo_vidrio) detalle += ` ${item.tipo_vidrio.nombre.toUpperCase()}`
+    }
 
-    const medidas = (item.ancho_mt && item.alto_mt) ? `<br>MEDIDAS: ${(item.ancho_mt * 100).toFixed(0)}X${(item.alto_mt * 100).toFixed(0)}` : '';
-    const metrajeCubicado = (item.area_total_m2 > 0) ? `<br>Total metraje cubicados: ${item.area_total_m2.toFixed(2)}` : '';
-      
+    if (item.ancho_mt && item.alto_mt) {
+      const anchoCm = (item.ancho_mt * 100).toFixed(0)
+      const altoCm = (item.alto_mt * 100).toFixed(0)
+      detalle += `<br>MEDIDAS: ${anchoCm}X${altoCm}`
+    }
+
+    if (item.area_total_m2 > 0) {
+      detalle += `<br>Total metraje cubicados: ${item.area_total_m2.toFixed(0)}`
+    }
+
+    // Determinar área: para servicios "VALOR METRO" + precio unitario
+    const esServicio = item.tipo_item.toLowerCase().includes('lavada') || 
+                       item.tipo_item.toLowerCase().includes('limpieza') ||
+                       item.tipo_item.toLowerCase().includes('retirada') ||
+                       item.tipo_item.toLowerCase().includes('pintura') ||
+                       (item.notas_diseno && item.notas_diseno.length > 50)
+
+    let areaStr = ''
+    if (esServicio) {
+      areaStr = `VALOR METRO<br>${formatMoneda(item.precio_unitario_m2)}`
+    } else {
+      areaStr = item.area_total_m2.toFixed(0)
+    }
+
     return `
       <tr>
-        <td style="border: 1px solid black; text-align: center; padding: 5px;">${index + 1}</td>
-        <td style="border: 1px solid black; padding: 5px;">
-          ${detalle}${medidas}${metrajeCubicado}
+        <td style="border: 1px solid black; text-align: center; padding: 5px; vertical-align: top; width: 30px;">${index + 1}</td>
+        <td style="border: 1px solid black; padding: 5px; vertical-align: top;">
+          ${detalle}
         </td>
-        <td style="border: 1px solid black; text-align: center; padding: 5px;">${item.area_total_m2.toFixed(2)}</td>
-        <td style="border: 1px solid black; text-align: center; padding: 5px;">${formatMoneda(item.precio_calculado)}</td>
+        <td style="border: 1px solid black; text-align: center; padding: 5px; vertical-align: top; width: 90px;">${areaStr}</td>
+        <td style="border: 1px solid black; text-align: right; padding: 5px; vertical-align: top; width: 90px;">${formatMoneda(item.precio_calculado)}</td>
       </tr>
     `;
   }).join('');
@@ -52,49 +82,48 @@ export function generarCotizacionWord(respuesta: CotizacionResponse): void {
   const content = `
     <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
     <head><meta charset='utf-8'><title>Cotizacion</title>
-    <style> /* Estilos para Word */
-      body { font-family: 'Times New Roman', Times, serif; margin: 1in; text-align: left; }
-      .header { font-weight: bold; font-size: 12pt; margin-bottom: 2px; }
-      .info { font-size: 10pt; margin-bottom: 2px; }
-      .date-city { font-size: 11pt; margin-top: 10px; margin-bottom: 10px; }
-      .recipient { font-size: 11pt; margin-top: 10px; margin-bottom: 10px; }
-      .recipient-name { font-weight: bold; font-size: 11pt; }
+    <style>
+      body { font-family: Arial, Helvetica, sans-serif; margin: 1in; }
+      .empresa-line1 { font-weight: bold; font-size: 12pt; margin-bottom: 2px; }
+      .info-line { font-size: 10pt; margin-bottom: 2px; }
+      .date-line { font-size: 11pt; margin-top: 12px; margin-bottom: 12px; }
+      .cliente-line { font-size: 11pt; }
+      .cliente-nombre { font-weight: bold; font-size: 11pt; }
       .title { font-weight: bold; font-size: 16pt; text-align: center; margin: 20px 0; }
       table { width: 100%; border-collapse: collapse; margin: 20px 0; font-size: 9pt; }
       table th, table td { border: 1px solid black; padding: 5px; vertical-align: top; }
       table th { text-align: center; font-weight: bold; }
-      .conditions { font-size: 10pt; margin-top: 20px; }
-      .signature { margin-top: 40px; }
-      .signature-line { border-bottom: 1px solid black; width: 200px; margin: 0 auto; }
-      .signature-name { font-weight: bold; font-size: 11pt; margin-top: 5px; }
-      .signature-cc { font-size: 10pt; }
+      .conditions { font-size: 10pt; }
+      .conditions p { margin: 4px 0; }
+      .firma { margin-top: 40px; }
     </style>
     </head>
     <body>
-      <!-- BLOQUE DE ENCABEZADO (Alineado a la Izquierda) -->
-      <div class="header">${EMPRESA.nombre}</div>
-      <div class="info">RUT: ${EMPRESA.rut}</div>
-      <div class="info">Correo: ${EMPRESA.correo} – Celular: ${EMPRESA.celular}</div>
-      <div class="info">${EMPRESA.direccion}</div>
-      <div class="date-city">Duitama, ${fecha}</div>
+      <!-- ENCABEZADO (TEXTO PLANO ALINEADO A LA IZQUIERDA) -->
+      <div class="empresa-line1">${EMPRESA.nombre}</div>
+      <div class="info-line">RUT: ${EMPRESA.rut}</div>
+      <div class="info-line">Correo: ${EMPRESA.correo} – Celular: ${EMPRESA.celular}</div>
+      <div class="info-line">${EMPRESA.direccion}</div>
       
-      <!-- BLOQUE DE DESTINATARIO (Alineado a la Izquierda) -->
-      <div class="recipient">
-        <p>Señor</p>
-        <p class="recipient-name">${(cotizacion.cliente?.nombre || 'Cliente').toUpperCase()}</p>
-        <p>Ciudad</p>
-      </div>
+      <!-- FECHA: Duitama, 20 de marzo de 2026 -->
+      <div class="date-line">Duitama, ${fecha}</div>
+      
+      <!-- DATOS DEL CLIENTE -->
+      <div class="cliente-line">Señor</div>
+      <div class="cliente-nombre">${(cotizacion.cliente?.nombre || 'Cliente').toUpperCase()}</div>
+      <div class="cliente-line">Ciudad</div>
 
-      <!-- TÍTULO PRINCIPAL (ESTRICTAMENTE CENTRADO) -->
+      <!-- TÍTULO CENTRADO -->
       <div class="title">COTIZACION</div>
       
+      <!-- TABLA -->
       <table>
         <thead>
-          <tr style="font-weight: bold;">
-            <th>ITEMS</th>
+          <tr>
+            <th style="width: 30px;">ITEMS</th>
             <th>DETALLE</th>
-            <th>AREA EN M²</th>
-            <th>VALOR TOTAL</th>
+            <th style="width: 90px;">AREA EN M2</th>
+            <th style="width: 90px;">VALOR TOTAL</th>
           </tr>
         </thead>
         <tbody>
@@ -102,7 +131,7 @@ export function generarCotizacionWord(respuesta: CotizacionResponse): void {
         </tbody>
       </table>
 
-      <!-- BLOQUE INFERIOR DE CONDICIONES (Alineado a la Izquierda) -->
+      <!-- BLOQUE INFERIOR DE CONDICIONES -->
       <div class="conditions">
         <p><b>CONDICIONES ECONÓMICAS:</b> 60% de anticipo al aceptar esta cotización y 40% contra entrega.</p>
         <p><b>NO INCLUYE:</b> obras de albañilería.</p>
@@ -110,12 +139,13 @@ export function generarCotizacionWord(respuesta: CotizacionResponse): void {
         <p><b>VALIDEZ OFERTA:</b> 10 días calendario.</p>
       </div>
 
-      <div class="signature">
+      <!-- FIRMA -->
+      <div class="firma">
         <p>Cordialmente,</p>
         <br>
-        <div class="signature-line"></div>
-        <p class="signature-name"><b>${EMPRESA.nombre}</b></p>
-        <p class="signature-cc">CC. ${EMPRESA.rut}</p>
+        <hr style="width: 200px; text-align: left; margin-left: 0;">
+        <p style="font-weight: bold; font-size: 11pt;">${EMPRESA.nombre}</p>
+        <p style="font-size: 10pt;">CC. ${EMPRESA.rut}</p>
       </div>
     </body>
     </html>

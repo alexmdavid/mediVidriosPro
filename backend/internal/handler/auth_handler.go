@@ -122,6 +122,11 @@ func (h *AuthHandler) Registro(w http.ResponseWriter, r *http.Request) {
 	}
 	usuario.ID = id
 
+	// Sincronizar: auto-crear registro en tabla clientes si no existe
+	clienteEmail := strings.TrimSpace(strings.ToLower(req.Email))
+	clienteTelefono := strings.TrimSpace(req.Telefono)
+	h.service.SincronizarClienteDesdeUsuario(usuario.Nombre, clienteEmail, clienteTelefono)
+
 	// Generar token
 	token, err := generarToken(usuario)
 	if err != nil {
@@ -251,6 +256,10 @@ func (h *AuthHandler) GoogleLogin(w http.ResponseWriter, r *http.Request) {
 			}
 			nuevoUsuario.ID = id
 			usuario = nuevoUsuario
+
+			// Sincronizar: crear cliente en tabla clientes automáticamente
+			h.service.SincronizarClienteDesdeUsuario(usuario.Nombre, usuario.Email, "")
+
 			log.Printf("✅ Google Login: usuario creado con ID %d", id)
 		} else {
 			log.Printf("🔐 Google Login: vinculando Google ID a usuario existente %d", usuario.ID)
