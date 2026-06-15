@@ -122,18 +122,22 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+DROP TRIGGER IF EXISTS trigger_tipos_vidrio_updated ON tipos_vidrio;
 CREATE TRIGGER trigger_tipos_vidrio_updated
     BEFORE UPDATE ON tipos_vidrio
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
+DROP TRIGGER IF EXISTS trigger_clientes_updated ON clientes;
 CREATE TRIGGER trigger_clientes_updated
     BEFORE UPDATE ON clientes
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
+DROP TRIGGER IF EXISTS trigger_cotizaciones_updated ON cotizaciones;
 CREATE TRIGGER trigger_cotizaciones_updated
     BEFORE UPDATE ON cotizaciones
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
+DROP TRIGGER IF EXISTS trigger_items_cotizacion_updated ON items_cotizacion;
 CREATE TRIGGER trigger_items_cotizacion_updated
     BEFORE UPDATE ON items_cotizacion
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
