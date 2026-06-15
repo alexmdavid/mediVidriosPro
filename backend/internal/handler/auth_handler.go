@@ -170,7 +170,8 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := bcrypt.CompareHashAndPassword([]byte(*usuario.PasswordHash), []byte(req.Password)); err != nil {
-		log.Printf("⚠️ Login fallido: Contraseña incorrecta para %s", req.Email)
+		hashLen := len(*usuario.PasswordHash)
+		log.Printf("⚠️ Login fallido: Contraseña incorrecta para %s (Hash en DB len: %d)", req.Email, hashLen)
 		sendError(w, http.StatusUnauthorized, "Credenciales inválidas", "")
 		return
 	}
