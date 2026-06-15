@@ -51,6 +51,8 @@ func (h *CotizacionHandler) RegisterRoutes(r *mux.Router) {
 	api.HandleFunc("/cotizaciones/{id:[0-9]+}", AuthMiddleware(AdminMiddleware(h.EliminarCotizacion))).Methods("DELETE")
 	api.HandleFunc("/cotizaciones/{id:[0-9]+}/asignar", AuthMiddleware(AdminMiddleware(h.AsignarCotizacion))).Methods("PUT")
 
+	// Estado
+	api.HandleFunc("/cotizaciones/{id:[0-9]+}/estado", AuthMiddleware(AdminMiddleware(h.CambiarEstadoHandler))).Methods("PUT")
 	// Exportación
 	api.HandleFunc("/cotizaciones/{id:[0-9]+}/export", AuthMiddleware(h.ExportarCotizacion)).Methods("GET")
 
@@ -301,6 +303,47 @@ func (h *CotizacionHandler) AsignarCotizacion(w http.ResponseWriter, r *http.Req
 	}
 
 	sendJSON(w, http.StatusOK, map[string]string{"mensaje": "Cotización asignada al cliente"})
+}
+
+// =============================================================
+// Admin: Cambiar estado de cotización
+// =============================================================
+
+func (h *CotizacionHandler) CambiarEstadoHandler(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	id, err := strconv.Atoi(vars["id"])
+	if err != nil {
+		sendError(w, http.StatusBadRequest, "ID inválido", "")
+		return
+	}
+
+	var req domain.CambiarEstadoRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		sendError(w, http.StatusBadRequest, "JSON inválido", err.Error())
+		return
+	}
+
+	// Validar estado permitido
+	estadosValidos := map[string]bool{"borrador": true, "enviada": true, "aprobada": true, "rechazada": true, "facturada": true}
+	if !estadosValidos[req.Estado] {
+		sendError(w, http.StatusBadRequest, "Estado inválido. Estados permitidos: borrador, enviada, aprobada, rechazada, facturada", "")
+		return
+	}
+
+	updateReq := &domain.ActualizarCotizacionRequest{Estado: req.Estado}
+	if err := h.service.ActualizarCotizacion(id, updateReq); err != nil {
+		sendError(w, http.StatusInternalServerError, "Error al cambiar estado", err.Error())
+		return
+	}
+
+	// Si el estado es "enviada", enviar notificación por correo
+	if req.Estado == "enviada" {
+		if sendErr := h.service.NotificarCotizacionEnviada(id); sendErr != nil {
+			log.Printf("⚠️ HANDLER: Error al notificar cotización #%d: %v", id, sendErr)
+		}
+	}
+
+	sendJSON(w, http.StatusOK, map[string]string{"mensaje": "Estado actualizado correctamente", "estado": req.Estado})
 }
 
 // =============================================================

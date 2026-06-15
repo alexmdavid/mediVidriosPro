@@ -1,18 +1,37 @@
 // =============================================================
 // Componente de detalle de cotización existente
-// Permite ver los detalles y descargar en múltiples formatos
+// Permite ver los detalles, cambiar estado, descargar y eliminar
+// Diseño responsivo mobile-first con Tailwind
 // =============================================================
 
 import { useState, useEffect } from 'react'
 import type { CotizacionResponse } from './types'
 import { formatMoneda } from './types'
-import { obtenerCotizacion, eliminarCotizacion } from '../../api/cotizaciones'
+import { obtenerCotizacion, eliminarCotizacion, cambiarEstadoCotizacion } from '../../api/cotizaciones'
 import { generarCotizacionPDF } from './GenerarPDF'
 import { generarCotizacionWord } from './GenerarWord'
 
 interface Props {
   cotizacionId: number
   onVolver: () => void
+}
+
+const ESTADOS = ['borrador', 'enviada', 'aprobada', 'rechazada', 'facturada'] as const
+
+const ESTADO_LABELS: Record<string, string> = {
+  borrador: 'Borrador',
+  enviada: 'Enviada',
+  aprobada: 'Aprobada',
+  rechazada: 'Rechazada',
+  facturada: 'Facturada',
+}
+
+const ESTADO_COLORS: Record<string, string> = {
+  borrador: 'bg-yellow-100 text-yellow-800 border-yellow-300',
+  enviada: 'bg-blue-100 text-blue-800 border-blue-300',
+  aprobada: 'bg-green-100 text-green-800 border-green-300',
+  rechazada: 'bg-red-100 text-red-800 border-red-300',
+  facturada: 'bg-purple-100 text-purple-800 border-purple-300',
 }
 
 export default function CotizacionDetalle({ cotizacionId, onVolver }: Props) {
@@ -22,6 +41,8 @@ export default function CotizacionDetalle({ cotizacionId, onVolver }: Props) {
   const [menuAbierto, setMenuAbierto] = useState(false)
   const [confirmarEliminar, setConfirmarEliminar] = useState(false)
   const [eliminando, setEliminando] = useState(false)
+  const [selectorEstadoAbierto, setSelectorEstadoAbierto] = useState(false)
+  const [cambiandoEstado, setCambiandoEstado] = useState(false)
 
   // ---- Generar CSV ----
   const generarCSV = (respuesta: CotizacionResponse) => {
@@ -61,6 +82,22 @@ export default function CotizacionDetalle({ cotizacionId, onVolver }: Props) {
     }
   }
 
+  // ---- Cambiar estado ----
+  const handleCambiarEstado = async (nuevoEstado: string) => {
+    setCambiandoEstado(true)
+    setSelectorEstadoAbierto(false)
+    try {
+      await cambiarEstadoCotizacion(cotizacionId, nuevoEstado)
+      // Recargar data
+      const refreshed = await obtenerCotizacion(cotizacionId)
+      setData(refreshed)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Error al cambiar estado')
+    } finally {
+      setCambiandoEstado(false)
+    }
+  }
+
   useEffect(() => {
     setCargando(true)
     setError(null)
@@ -97,19 +134,11 @@ export default function CotizacionDetalle({ cotizacionId, onVolver }: Props) {
 
   const { cotizacion, resumen } = data
 
-  const ESTADO_COLORS: Record<string, string> = {
-    borrador: 'bg-yellow-100 text-yellow-800 border-yellow-300',
-    enviada: 'bg-blue-100 text-blue-800 border-blue-300',
-    aprobada: 'bg-green-100 text-green-800 border-green-300',
-    rechazada: 'bg-red-100 text-red-800 border-red-300',
-    facturada: 'bg-purple-100 text-purple-800 border-purple-300',
-  }
-
   return (
-    <div className="space-y-6">
-      {/* Header con acciones */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
+    <div className="space-y-4 sm:space-y-6">
+      {/* Header con acciones - Mobile fixed bottom on small screens */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div className="flex items-center gap-2 sm:gap-3">
           <button
             onClick={onVolver}
             className="p-2 rounded-lg hover:bg-gray-100 transition-colors"
@@ -119,37 +148,34 @@ export default function CotizacionDetalle({ cotizacionId, onVolver }: Props) {
               <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18" />
             </svg>
           </button>
-          <div>
-            <h2 className="text-2xl font-bold text-gray-900">
+          <div className="min-w-0">
+            <h2 className="text-xl sm:text-2xl font-bold text-gray-900 truncate">
               Cotización #{cotizacion.id}
             </h2>
-            <p className="text-sm text-gray-500">
+            <p className="text-xs sm:text-sm text-gray-500">
               {new Date(cotizacion.fecha_creacion).toLocaleDateString('es-CO', {
-                year: 'numeric',
-                month: 'long',
-                day: 'numeric',
+                year: 'numeric', month: 'long', day: 'numeric',
               })}
             </p>
           </div>
         </div>
-        
-        <div className="relative">
+
+        {/* Botón Acciones - visible on all screens */}
+        <div className="relative flex-shrink-0">
           <button
             onClick={() => setMenuAbierto(!menuAbierto)}
-            className="btn-primary flex items-center gap-2 bg-gray-800 hover:bg-black"
+            className="btn-primary flex items-center gap-2 bg-gray-800 hover:bg-black w-full sm:w-auto justify-center"
           >
             Acciones
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path d="M19 9l-7 7-7-7" /></svg>
           </button>
           
           {menuAbierto && (
-            <div className="absolute right-0 mt-2 w-64 bg-white border border-gray-200 rounded-xl shadow-xl z-50 overflow-hidden" onMouseLeave={() => setMenuAbierto(false)}>
-              {/* Editar */}
+            <div className="absolute right-0 mt-2 w-64 bg-white border border-gray-200 rounded-xl shadow-xl z-50 overflow-hidden">
               <button className="w-full text-left px-4 py-2.5 hover:bg-gray-50 text-sm flex items-center gap-2">
                 <svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
                 Editar Cotización
               </button>
-              {/* Eliminar */}
               <button 
                 onClick={() => { setConfirmarEliminar(true); setMenuAbierto(false); }}
                 className="w-full text-left px-4 py-2.5 hover:bg-red-50 text-sm text-red-600 flex items-center gap-2"
@@ -157,31 +183,21 @@ export default function CotizacionDetalle({ cotizacionId, onVolver }: Props) {
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
                 Eliminar Cotización
               </button>
-              {/* Separador */}
               <div className="border-t border-gray-100 my-1"></div>
-              {/* Exportar PDF */}
-              <button 
-                onClick={() => { generarCotizacionPDF(data); setMenuAbierto(false); }}
-                className="w-full text-left px-4 py-2.5 hover:bg-gray-50 text-sm flex items-center gap-2"
-              >
+              <button onClick={() => { generarCotizacionPDF(data); setMenuAbierto(false); }}
+                className="w-full text-left px-4 py-2.5 hover:bg-gray-50 text-sm flex items-center gap-2">
                 <svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path d="M6.72 13.829c-.24.03-.48.062-.72.096m.72-.096a42.415 42.415 0 0110.56 0m-10.56 0L6.34 18m10.94-4.171c.24.03.48.062.72.096m-.72-.096L17.66 18m0 0l.229 2.523a1.125 1.125 0 01-1.12 1.227H7.231c-.662 0-1.18-.568-1.12-1.227L6.34 18m11.318 0h1.091A2.25 2.25 0 0021 15.75V9.456c0-1.081-.768-2.015-1.837-2.175a48.055 48.055 0 00-1.913-.247M6.34 18H5.25A2.25 2.25 0 013 15.75V9.456c0-1.081.768-2.015 1.837-2.175a48.041 48.041 0 011.913-.247m10.5 0a48.536 48.536 0 00-10.5 0m10.5 0V3.375c0-.621-.504-1.125-1.125-1.125h-8.25c-.621 0-1.125.504-1.125 1.125v3.659M18 10.5h.008v.008H18V10.5zm-3 0h.008v.008H15V10.5z" /></svg>
-                Descargar PDF (Formato Oficial)
+                PDF (Formato Oficial)
               </button>
-              {/* Exportar CSV */}
-              <button 
-                onClick={() => { generarCSV(data); setMenuAbierto(false); }}
-                className="w-full text-left px-4 py-2.5 hover:bg-gray-50 text-sm flex items-center gap-2"
-              >
+              <button onClick={() => { generarCSV(data); setMenuAbierto(false); }}
+                className="w-full text-left px-4 py-2.5 hover:bg-gray-50 text-sm flex items-center gap-2">
                 <svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path d="M3.75 9.776c.112-.017.227-.026.344-.026h15.812c.117 0 .232.009.344.026m-16.5 0a2.25 2.25 0 00-1.883 2.542l.857 6a2.25 2.25 0 002.227 1.932H19.05a2.25 2.25 0 002.227-1.932l.857-6a2.25 2.25 0 00-1.883-2.542m-16.5 0V6A2.25 2.25 0 016 3.75h3.879a1.5 1.5 0 011.06.44l2.122 2.12a1.5 1.5 0 001.06.44H18A2.25 2.25 0 0120.25 9v.776" /></svg>
-                Descargar CSV (Datos puros)
+                CSV (Datos puros)
               </button>
-              {/* Exportar Word */}
-              <button 
-                onClick={() => { generarCotizacionWord(data); setMenuAbierto(false); }}
-                className="w-full text-left px-4 py-2.5 hover:bg-gray-50 text-sm flex items-center gap-2"
-              >
+              <button onClick={() => { generarCotizacionWord(data); setMenuAbierto(false); }}
+                className="w-full text-left px-4 py-2.5 hover:bg-gray-50 text-sm flex items-center gap-2">
                 <svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" /></svg>
-                Descargar como Word (.docx)
+                Word (.docx)
               </button>
             </div>
           )}
@@ -194,75 +210,147 @@ export default function CotizacionDetalle({ cotizacionId, onVolver }: Props) {
           <div className="bg-white rounded-xl shadow-xl max-w-sm w-full p-6" onClick={(e) => e.stopPropagation()}>
             <h3 className="text-lg font-bold text-gray-900 mb-2">Eliminar Cotización #{cotizacion.id}</h3>
             <p className="text-sm text-gray-600 mb-6">
-              ¿Estás seguro de eliminar esta cotización? Esta acción no se puede deshacer y eliminará todos los items asociados.
+              ¿Estás seguro de eliminar esta cotización? Esta acción no se puede deshacer.
             </p>
             <div className="flex justify-end gap-3">
               <button onClick={() => setConfirmarEliminar(false)} className="btn-secondary">Cancelar</button>
               <button onClick={handleEliminar} disabled={eliminando} className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm font-medium flex items-center gap-2">
-                {eliminando ? (
-                  <>
-                    <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" /></svg>
-                    Eliminando...
-                  </>
-                ) : 'Eliminar'}
+                {eliminando ? 'Eliminando...' : 'Eliminar'}
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Info del cliente y estado */}
-      <div className="card p-6">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      {/* Info del cliente y estado + estado interactivo */}
+      <div className="card p-4 sm:p-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
           <div>
             <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Cliente</h3>
-            <p className="text-lg font-bold text-gray-900">{cotizacion.cliente?.nombre || 'Sin cliente'}</p>
+            <p className="text-base sm:text-lg font-bold text-gray-900 break-words">{cotizacion.cliente?.nombre || 'Sin cliente'}</p>
           </div>
           <div>
-            <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Obra / Descripción</h3>
-            <p className="text-gray-700">{cotizacion.descripcion_obra}</p>
+            <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Obra</h3>
+            <p className="text-sm text-gray-700 break-words">{cotizacion.descripcion_obra}</p>
           </div>
-          <div>
+          <div className="relative">
             <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Estado</h3>
-            <span className={`inline-block px-3 py-1 rounded-full text-sm font-medium border ${ESTADO_COLORS[cotizacion.estado] || 'bg-gray-100 text-gray-800 border-gray-300'}`}>
-              {cotizacion.estado.charAt(0).toUpperCase() + cotizacion.estado.slice(1)}
-            </span>
+            <button
+              onClick={() => setSelectorEstadoAbierto(!selectorEstadoAbierto)}
+              disabled={cambiandoEstado}
+              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium border cursor-pointer hover:opacity-80 transition-opacity ${
+                ESTADO_COLORS[cotizacion.estado] || 'bg-gray-100 text-gray-800 border-gray-300'
+              }`}
+            >
+              {cambiandoEstado ? (
+                <svg className="animate-spin h-3 w-3" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" /></svg>
+              ) : (
+                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path d="M19.5 8.25l-7.5 7.5-7.5-7.5" /></svg>
+              )}
+              {ESTADO_LABELS[cotizacion.estado] || cotizacion.estado}
+            </button>
+            {selectorEstadoAbierto && (
+              <div className="absolute left-0 mt-1 w-44 bg-white border border-gray-200 rounded-xl shadow-xl z-40 overflow-hidden">
+                {ESTADOS.map((est) => (
+                  <button
+                    key={est}
+                    onClick={() => handleCambiarEstado(est)}
+                    className={`w-full text-left px-4 py-2 text-sm hover:bg-gray-50 flex items-center gap-2 ${
+                      est === cotizacion.estado ? 'font-bold text-gray-900' : 'text-gray-600'
+                    }`}
+                  >
+                    <span className={`w-2 h-2 rounded-full inline-block ${
+                      est === 'borrador' ? 'bg-yellow-400' :
+                      est === 'enviada' ? 'bg-blue-400' :
+                      est === 'aprobada' ? 'bg-green-400' :
+                      est === 'rechazada' ? 'bg-red-400' : 'bg-purple-400'
+                    }`}></span>
+                    {ESTADO_LABELS[est]}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       </div>
 
-      {/* Resumen */}
-      <div className="card p-6">
+      {/* Resumen - grid responsive */}
+      <div className="card p-4 sm:p-6">
         <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-4">Resumen</h3>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <div className="bg-gray-50 rounded-lg p-3 text-center">
-            <p className="text-xs text-gray-500">Total Items</p>
-            <p className="text-lg font-bold text-gray-900">{resumen.cantidad_total_items}</p>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
+          <div className="bg-gray-50 rounded-lg p-2.5 sm:p-3 text-center">
+            <p className="text-[10px] sm:text-xs text-gray-500">Total Items</p>
+            <p className="text-base sm:text-lg font-bold text-gray-900">{resumen.cantidad_total_items}</p>
           </div>
-          <div className="bg-primary-50 rounded-lg p-3 text-center">
-            <p className="text-xs text-primary-600">Área Total (m²)</p>
-            <p className="text-lg font-bold text-primary-700">{resumen.area_total_m2.toFixed(4)}</p>
+          <div className="bg-primary-50 rounded-lg p-2.5 sm:p-3 text-center">
+            <p className="text-[10px] sm:text-xs text-primary-600">Área Total (m²)</p>
+            <p className="text-base sm:text-lg font-bold text-primary-700">{resumen.area_total_m2.toFixed(4)}</p>
           </div>
-          <div className="bg-gray-50 rounded-lg p-3 text-center">
-            <p className="text-xs text-gray-500">Margen</p>
-            <p className="text-lg font-bold text-gray-900">{resumen.porcentaje_margen}%</p>
+          <div className="bg-gray-50 rounded-lg p-2.5 sm:p-3 text-center">
+            <p className="text-[10px] sm:text-xs text-gray-500">Margen</p>
+            <p className="text-base sm:text-lg font-bold text-gray-900">{resumen.porcentaje_margen}%</p>
           </div>
-          <div className="bg-green-50 rounded-lg p-3 text-center border border-green-200">
-            <p className="text-xs text-green-600">TOTAL</p>
-            <p className="text-xl font-bold text-green-700">{resumen.total_formateado}</p>
+          <div className="bg-green-50 rounded-lg p-2.5 sm:p-3 text-center border border-green-200">
+            <p className="text-[10px] sm:text-xs text-green-600">TOTAL</p>
+            <p className="text-sm sm:text-xl font-bold text-green-700 break-words">{resumen.total_formateado}</p>
           </div>
         </div>
       </div>
 
-      {/* Tabla de items */}
+      {/* Tabla de items - responsive: cards en mobile, table en desktop */}
       {cotizacion.items && cotizacion.items.length > 0 && (
         <div className="card overflow-hidden">
-          <div className="px-6 py-4 bg-gray-50 border-b border-gray-200">
+          <div className="px-4 sm:px-6 py-3 sm:py-4 bg-gray-50 border-b border-gray-200">
             <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">
               Detalle de Medidas
+              <span className="text-gray-400 font-normal normal-case ml-2">({cotizacion.items.length} ítems)</span>
             </h3>
           </div>
-          <div className="overflow-x-auto">
+
+          {/* Vista Mobile: Cards */}
+          <div className="block sm:hidden divide-y divide-gray-100">
+            {cotizacion.items.map((item, index) => (
+              <div key={item.id} className="p-4 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="font-medium text-gray-900">{item.tipo_item}</span>
+                  <span className="text-xs text-gray-400">#{index + 1}</span>
+                </div>
+                <div className="grid grid-cols-2 gap-2 text-sm">
+                  <div>
+                    <span className="text-xs text-gray-500 block">Vidrio</span>
+                    <span>{item.tipo_vidrio?.nombre || `ID ${item.tipo_vidrio_id}`}</span>
+                  </div>
+                  <div>
+                    <span className="text-xs text-gray-500 block">Medidas</span>
+                    <span>{item.ancho_mt}m × {item.alto_mt}m</span>
+                  </div>
+                  <div>
+                    <span className="text-xs text-gray-500 block">Cant.</span>
+                    <span>{item.cantidad}</span>
+                  </div>
+                  <div>
+                    <span className="text-xs text-gray-500 block">Área (m²)</span>
+                    <span className="text-primary-700 font-medium">{item.area_total_m2.toFixed(4)}</span>
+                  </div>
+                </div>
+                <div className="flex items-center justify-between pt-1 border-t border-gray-100">
+                  <span className="text-xs text-gray-500">$/{item.precio_unitario_m2.toLocaleString('es-CO')} m²</span>
+                  <span className="font-bold text-green-700">{formatMoneda(item.precio_calculado)}</span>
+                </div>
+                {item.notas_diseno && (
+                  <p className="text-xs text-gray-500 italic">{item.notas_diseno}</p>
+                )}
+              </div>
+            ))}
+            {/* Total en mobile */}
+            <div className="p-4 bg-gray-50 flex items-center justify-between font-bold">
+              <span className="text-gray-700">TOTAL</span>
+              <span className="text-green-700">{resumen.total_formateado}</span>
+            </div>
+          </div>
+
+          {/* Vista Desktop: Tabla */}
+          <div className="hidden sm:block overflow-x-auto">
             <table className="w-full text-sm">
               <thead className="bg-gray-100">
                 <tr>
@@ -289,19 +377,11 @@ export default function CotizacionDetalle({ cotizacionId, onVolver }: Props) {
                       {item.ancho_mt}m × {item.alto_mt}m
                     </td>
                     <td className="px-4 py-3 text-center">{item.cantidad}</td>
-                    <td className="px-4 py-3 text-right text-primary-700 font-medium">
-                      {item.area_total_m2.toFixed(4)}
-                    </td>
-                    <td className="px-4 py-3 text-right text-gray-600">
-                      {formatMoneda(item.precio_unitario_m2)}
-                    </td>
-                    <td className="px-4 py-3 text-right font-bold text-green-700">
-                      {formatMoneda(item.precio_calculado)}
-                    </td>
+                    <td className="px-4 py-3 text-right text-primary-700 font-medium">{item.area_total_m2.toFixed(4)}</td>
+                    <td className="px-4 py-3 text-right text-gray-600">{formatMoneda(item.precio_unitario_m2)}</td>
+                    <td className="px-4 py-3 text-right font-bold text-green-700">{formatMoneda(item.precio_calculado)}</td>
                     {cotizacion.items?.some((i) => i.notas_diseno) && (
-                      <td className="px-4 py-3 text-gray-500 text-xs">
-                        {item.notas_diseno || '-'}
-                      </td>
+                      <td className="px-4 py-3 text-gray-500 text-xs">{item.notas_diseno || '-'}</td>
                     )}
                   </tr>
                 ))}

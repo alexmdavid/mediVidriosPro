@@ -221,6 +221,16 @@ export async function eliminarCotizacion(id: number): Promise<void> {
 }
 
 /**
+ * Cambiar estado de una cotización (admin).
+ */
+export async function cambiarEstadoCotizacion(id: number, estado: string): Promise<{ mensaje: string; estado: string }> {
+  return apiRequest<{ mensaje: string; estado: string }>(`/cotizaciones/${id}/estado`, {
+    method: 'PUT',
+    body: JSON.stringify({ estado }),
+  })
+}
+
+/**
  * Preview de cotización (calcula sin persistir).
  */
 export async function previewCotizacion(

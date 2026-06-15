@@ -19,6 +19,7 @@ type CotizacionService struct {
 	clienteRepo    domain.ClienteRepository
 	cotizacionRepo domain.CotizacionRepository
 	usuarioRepo    domain.UsuarioRepository
+	emailCfg       *EmailConfig
 }
 
 // NewCotizacionService crea una nueva instancia del servicio.
@@ -33,6 +34,7 @@ func NewCotizacionService(
 		clienteRepo:    cliRepo,
 		cotizacionRepo: cotRepo,
 		usuarioRepo:    usrRepo,
+		emailCfg:       LoadEmailConfig(),
 	}
 }
 
@@ -388,6 +390,27 @@ func (s *CotizacionService) ListarCotizacionesPorCliente(usuarioID, page, pageSi
 // ResponderCotizacion permite al cliente aceptar/rechazar una cotización.
 func (s *CotizacionService) ResponderCotizacion(cotizacionID int, aceptada bool, notas string) error {
 	return s.cotizacionRepo.ResponderCotizacion(cotizacionID, aceptada, notas)
+}
+
+// NotificarCotizacionEnviada envía un correo al cliente cuando la cotización cambia a "enviada".
+func (s *CotizacionService) NotificarCotizacionEnviada(cotizacionID int) error {
+	cot, err := s.cotizacionRepo.ObtenerPorID(cotizacionID)
+	if err != nil || cot == nil {
+		return fmt.Errorf("cotización no encontrada: %w", err)
+	}
+
+	if cot.Cliente == nil || cot.Cliente.Email == nil || *cot.Cliente.Email == "" {
+		log.Printf("⚠️ EMAIL: Cliente sin email para cotización #%d, no se envió notificación", cotizacionID)
+		return nil
+	}
+
+	log.Printf("📧 ENVIANDO CORREO para cotización #%d a %s (%s)", cotizacionID, *cot.Cliente.Email, cot.Cliente.Nombre)
+	return s.emailCfg.SendCotizacionEnviada(
+		*cot.Cliente.Email,
+		cot.Cliente.Nombre,
+		cot.DescripcionObra,
+		cotizacionID,
+	)
 }
 
 // =============================================================

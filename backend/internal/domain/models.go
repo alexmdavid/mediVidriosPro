@@ -176,6 +176,11 @@ type ResponderCotizacionRequest struct {
 	Notas    string `json:"notas,omitempty"`
 }
 
+// CambiarEstadoRequest es el payload para cambiar el estado de una cotización.
+type CambiarEstadoRequest struct {
+	Estado string `json:"estado"`
+}
+
 // ErrorResponse estandariza los errores de la API.
 type ErrorResponse struct {
 	Error   string `json:"error"`
