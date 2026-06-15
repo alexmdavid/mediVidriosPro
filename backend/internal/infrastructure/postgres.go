@@ -445,7 +445,7 @@ func (r *CotizacionRepository) ObtenerPorID(id int) (*domain.Cotizacion, error) 
 	// Consultar encabezado con datos del cliente
 	queryCot := `
 		SELECT c.id, c.cliente_id, c.descripcion_obra, c.estado, c.total_cotizado,
-		       c.porcentaje_margen, c.fecha_creacion, c.fecha_actualizacion,
+		       c.porcentaje_margen, c.usuario_cliente_id, c.fecha_creacion, c.fecha_actualizacion,
 		       cl.id, cl.nombre, cl.telefono, cl.email, cl.direccion, cl.notas
 		FROM cotizaciones c
 		JOIN clientes cl ON cl.id = c.cliente_id
@@ -457,7 +457,7 @@ func (r *CotizacionRepository) ObtenerPorID(id int) (*domain.Cotizacion, error) 
 
 	err := r.db.QueryRow(queryCot, id).Scan(
 		&cot.ID, &cot.ClienteID, &cot.DescripcionObra, &cot.Estado,
-		&cot.TotalCotizado, &cot.PorcentajeMargen,
+		&cot.TotalCotizado, &cot.PorcentajeMargen, &cot.UsuarioClienteID,
 		&cot.FechaCreacion, &cot.FechaActualizacion,
 		&cot.Cliente.ID, &cot.Cliente.Nombre, &cot.Cliente.Telefono,
 		&cot.Cliente.Email, &cot.Cliente.Direccion, &cot.Cliente.Notas,
@@ -530,6 +530,20 @@ func (r *CotizacionRepository) Listar(page, pageSize int, filtros *domain.Filtro
 			argIdx++
 		}
 
+		// Filtro por ID de cliente
+		if filtros.ClienteID > 0 {
+			whereClauses = append(whereClauses, fmt.Sprintf("c.cliente_id = $%d", argIdx))
+			args = append(args, filtros.ClienteID)
+			argIdx++
+		}
+
+		// Filtro por Usuario asignado
+		if filtros.UsuarioID > 0 {
+			whereClauses = append(whereClauses, fmt.Sprintf("c.usuario_cliente_id = $%d", argIdx))
+			args = append(args, filtros.UsuarioID)
+			argIdx++
+		}
+
 		// Filtro por estado
 		if filtros.Estado != "" {
 			whereClauses = append(whereClauses, fmt.Sprintf("c.estado = $%d", argIdx))
@@ -593,7 +607,7 @@ func (r *CotizacionRepository) Listar(page, pageSize int, filtros *domain.Filtro
 	offset := (page - 1) * pageSize
 	query := fmt.Sprintf(`
 		SELECT c.id, c.cliente_id, c.descripcion_obra, c.estado, c.total_cotizado,
-		       c.porcentaje_margen, c.fecha_creacion, c.fecha_actualizacion,
+		       c.porcentaje_margen, c.usuario_cliente_id, c.fecha_creacion, c.fecha_actualizacion,
 		       cl.nombre
 		FROM cotizaciones c
 		JOIN clientes cl ON cl.id = c.cliente_id
@@ -617,6 +631,7 @@ func (r *CotizacionRepository) Listar(page, pageSize int, filtros *domain.Filtro
 		if err := rows.Scan(
 			&cot.ID, &cot.ClienteID, &cot.DescripcionObra, &cot.Estado,
 			&cot.TotalCotizado, &cot.PorcentajeMargen,
+			&cot.UsuarioClienteID,
 			&cot.FechaCreacion, &cot.FechaActualizacion,
 			&nombreCliente,
 		); err != nil {

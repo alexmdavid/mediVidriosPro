@@ -43,7 +43,7 @@ func (s *CotizacionService) ObtenerTiposVidrio() ([]domain.TipoVidrio, error) {
 	return s.tipoVidrioRepo.ObtenerTodos()
 }
 
-// ListarClienwebtes retorna la lista de clientes registrados.
+// ListarClientes retorna la lista de clientes registrados.
 func (s *CotizacionService) ListarClientes(page, pageSize int, buscar string) ([]domain.Cliente, int, error) {
 	if page < 1 {
 		page = 1

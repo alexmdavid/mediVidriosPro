@@ -450,21 +450,18 @@ func (h *AuthHandler) MisCotizaciones(w http.ResponseWriter, r *http.Request) {
 		pageSize = 20
 	}
 
-	// Buscar cotizaciones por cliente_id
-	total := 0
-	// NOTA: Para clientes de Google auth, buscamos por cliente_id.
-	// Para usuarios registrados, buscamos por usuario_cliente_id.
-	// Simplificación: usamos el clienteID para buscar cotizaciones
-	cotizaciones, total, err := h.service.ListarCotizaciones(page, pageSize, &domain.FiltrosCotizacion{
-		Buscar: strconv.Itoa(clienteID),
-	})
+	// Configurar filtros explícitos
+	filtros := &domain.FiltrosCotizacion{}
+	if claims.ClienteID > 0 {
+		filtros.ClienteID = claims.ClienteID
+	} else {
+		filtros.UsuarioID = claims.UsuarioID
+	}
+
+	cotizaciones, total, err := h.service.ListarCotizaciones(page, pageSize, filtros)
 	if err != nil {
-		// Fallback: búsqueda por usuario_cliente_id
-		cotizaciones, total, err = h.service.ListarCotizacionesPorCliente(claims.UsuarioID, page, pageSize)
-		if err != nil {
-			sendError(w, http.StatusInternalServerError, "Error al listar cotizaciones", err.Error())
-			return
-		}
+		sendError(w, http.StatusInternalServerError, "Error al listar cotizaciones", err.Error())
+		return
 	}
 
 	sendJSON(w, http.StatusOK, map[string]interface{}{

@@ -40,6 +40,7 @@ type Cotizacion struct {
 	Estado             string    `json:"estado"`
 	TotalCotizado      float64   `json:"total_cotizado"`
 	PorcentajeMargen   float64   `json:"porcentaje_margen"`
+	UsuarioClienteID   *int      `json:"usuario_cliente_id,omitempty"`
 	FechaCreacion      time.Time `json:"fecha_creacion"`
 	FechaActualizacion time.Time `json:"fecha_actualizacion"`
 	// Campos de navegación (no se persisten directamente)
@@ -116,6 +117,8 @@ type CalcularItemResult struct {
 type FiltrosCotizacion struct {
 	Buscar     string `json:"buscar"`      // Búsqueda por nombre de cliente o descripción
 	Estado     string `json:"estado"`      // Filtrar por estado
+	ClienteID  int    `json:"cliente_id"`  // Filtrar por cliente específico
+	UsuarioID  int    `json:"usuario_id"`  // Filtrar por usuario asignado
 	FechaDesde string `json:"fecha_desde"` // Fecha inicio (YYYY-MM-DD)
 	FechaHasta string `json:"fecha_hasta"` // Fecha fin (YYYY-MM-DD)
 	OrdenarPor string `json:"ordenar_por"` // Campo de ordenamiento
