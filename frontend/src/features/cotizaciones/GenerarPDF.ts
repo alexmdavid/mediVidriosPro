@@ -30,7 +30,10 @@ function formatMoneda(valor: number): string {
     maximumFractionDigits: 0,
   });
   let result = formatter.format(valor);
-  if (valor >= 1000000) result = result.replace('.', "'");
+  // Notación colombiana: reemplaza el primer punto por apóstrofe si es millón
+  if (valor >= 1000000) {
+    result = result.replace('.', "'");
+  }
   return '$' + result;
 }
 
@@ -49,7 +52,7 @@ export function generarCotizacionPDF(respuesta: CotizacionResponse): void {
   let y = margin
 
   // =============================================================
-  // ENCABEZADO - Formato Oficial Don Rubiel (Alineado Izquierda)
+  // ENCABEZADO - Datos de la empresa (bold, 12pt)
   // =============================================================
 
   doc.setFont(font, 'bold')
@@ -151,7 +154,7 @@ export function generarCotizacionPDF(respuesta: CotizacionResponse): void {
 
     return [
       (index + 1).toString(),
-      detalle.toUpperCase(),
+      detalle,
       formatArea(item.area_total_m2),
       formatMoneda(item.precio_calculado),
     ]
@@ -181,11 +184,10 @@ export function generarCotizacionPDF(respuesta: CotizacionResponse): void {
       lineWidth: 0.3,
     },
     columnStyles: {
-      0: { halign: 'center', cellWidth: 12 },
-      1: { cellWidth: 80 },
-      2: { halign: 'center', cellWidth: 25 },
-      3: { halign: 'center', cellWidth: 25 },
-      4: { halign: 'center', cellWidth: 28 },
+      0: { halign: 'center', cellWidth: 15 }, // ITEMS
+      1: { cellWidth: 90 }, // DETALLE
+      2: { halign: 'center', cellWidth: 35 }, // AREA EN M²
+      3: { halign: 'right', cellWidth: 35 }, // VALOR TOTAL
     },
     didParseCell: function (data) {
       // Encabezado: fondo blanco
@@ -204,24 +206,24 @@ export function generarCotizacionPDF(respuesta: CotizacionResponse): void {
 
   doc.setFont(font, 'bold')
   doc.setFontSize(10)
-  doc.text('CONDICIONES ECONÓMICAS:', pageWidth / 2, y, { align: 'center' })
+  doc.text('CONDICIONES ECONÓMICAS:', margin, y)
   y += 6
 
   doc.setFont(font, 'normal')
   doc.setFontSize(10)
-  doc.text('60% de anticipo al aceptar esta cotización y 40% contra entrega.', pageWidth / 2, y, { align: 'center' })
+  doc.text('60% de anticipo al aceptar esta cotización y 40% contra entrega.', margin, y)
   y += 7
 
   doc.setFont(font, 'bold')
-  doc.text('NO INCLUYE: obras de albañilería.', pageWidth / 2, y, { align: 'center' })
+  doc.text('NO INCLUYE: obras de albañilería.', margin, y)
   y += 7
 
   doc.setFont(font, 'bold')
-  doc.text('TIEMPO DE ENTREGA: A acordar con el cliente.', pageWidth / 2, y, { align: 'center' })
+  doc.text('TIEMPO DE ENTREGA: A acordar con el cliente.', margin, y)
   y += 7
 
   doc.setFont(font, 'bold')
-  doc.text('VALIDEZ OFERTA: 10 días calendario.', pageWidth / 2, y, { align: 'center' })
+  doc.text('VALIDEZ OFERTA: 10 días calendario.', margin, y)
   y += 14
 
   // =============================================================
@@ -230,23 +232,23 @@ export function generarCotizacionPDF(respuesta: CotizacionResponse): void {
 
   doc.setFont(font, 'normal')
   doc.setFontSize(11)
-  doc.text('Cordialmente,', pageWidth / 2, y, { align: 'center' })
+  doc.text('Cordialmente,', margin, y)
   y += 20
 
   // Línea de firma
   doc.setDrawColor(0)
   doc.setLineWidth(0.3)
-  doc.line(pageWidth / 2 - 35, y, pageWidth / 2 + 35, y)
+  doc.line(margin, y, margin + 70, y)
   y += 6
 
   doc.setFont(font, 'bold')
   doc.setFontSize(11)
-  doc.text(EMPRESA.nombre, pageWidth / 2, y, { align: 'center' })
+  doc.text(EMPRESA.nombre, margin, y)
   y += 5
 
   doc.setFont(font, 'normal')
   doc.setFontSize(10)
-  doc.text(`CC. ${EMPRESA.rut}`, pageWidth / 2, y, { align: 'center' })
+  doc.text(`CC. ${EMPRESA.rut}`, margin, y)
 
   // =============================================================
   // Guardar el PDF
