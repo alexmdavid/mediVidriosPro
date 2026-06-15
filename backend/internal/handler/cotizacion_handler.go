@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/gorilla/mux"
 
@@ -128,7 +129,7 @@ func (h *CotizacionHandler) ObtenerCotizacion(w http.ResponseWriter, r *http.Req
 // GET /api/cotizaciones?page=1&pageSize=20
 // =============================================================
 
-// ListarCotizaciones retorna una lista paginada de cotizaciones.
+// ListarCotizaciones retorna una lista paginada de cotizaciones con filtros.
 func (h *CotizacionHandler) ListarCotizaciones(w http.ResponseWriter, r *http.Request) {
 	page, _ := strconv.Atoi(r.URL.Query().Get("page"))
 	pageSize, _ := strconv.Atoi(r.URL.Query().Get("pageSize"))
@@ -140,7 +141,17 @@ func (h *CotizacionHandler) ListarCotizaciones(w http.ResponseWriter, r *http.Re
 		pageSize = 20
 	}
 
-	cotizaciones, total, err := h.service.ListarCotizaciones(page, pageSize)
+	// Construir filtros desde query params
+	filtros := &domain.FiltrosCotizacion{
+		Buscar:     strings.TrimSpace(r.URL.Query().Get("buscar")),
+		Estado:     strings.TrimSpace(r.URL.Query().Get("estado")),
+		FechaDesde: strings.TrimSpace(r.URL.Query().Get("fecha_desde")),
+		FechaHasta: strings.TrimSpace(r.URL.Query().Get("fecha_hasta")),
+		OrdenarPor: strings.TrimSpace(r.URL.Query().Get("ordenar_por")),
+		OrdenDir:   strings.TrimSpace(r.URL.Query().Get("orden_dir")),
+	}
+
+	cotizaciones, total, err := h.service.ListarCotizaciones(page, pageSize, filtros)
 	if err != nil {
 		sendError(w, http.StatusInternalServerError, "Error al listar cotizaciones", err.Error())
 		return

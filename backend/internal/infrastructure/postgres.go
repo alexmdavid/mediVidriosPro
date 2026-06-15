@@ -383,27 +383,97 @@ func (r *CotizacionRepository) ObtenerPorID(id int) (*domain.Cotizacion, error) 
 	return &cot, nil
 }
 
-// Listar retorna cotizaciones paginadas con datos del cliente.
-func (r *CotizacionRepository) Listar(page, pageSize int) ([]domain.Cotizacion, int, error) {
-	// Contar total
+// Listar retorna cotizaciones filtradas y paginadas con datos del cliente.
+func (r *CotizacionRepository) Listar(page, pageSize int, filtros *domain.FiltrosCotizacion) ([]domain.Cotizacion, int, error) {
+	// Construir WHERE dinámico
+	whereClauses := []string{}
+	args := []interface{}{}
+	argIdx := 1
+
+	if filtros != nil {
+		// Búsqueda por nombre de cliente o descripción
+		if filtros.Buscar != "" {
+			whereClauses = append(whereClauses,
+				fmt.Sprintf("(cl.nombre ILIKE $%d OR c.descripcion_obra ILIKE $%d)", argIdx, argIdx))
+			args = append(args, "%"+filtros.Buscar+"%")
+			argIdx++
+		}
+
+		// Filtro por estado
+		if filtros.Estado != "" {
+			whereClauses = append(whereClauses, fmt.Sprintf("c.estado = $%d", argIdx))
+			args = append(args, filtros.Estado)
+			argIdx++
+		}
+
+		// Filtro por fecha desde
+		if filtros.FechaDesde != "" {
+			whereClauses = append(whereClauses, fmt.Sprintf("c.fecha_creacion >= $%d", argIdx))
+			args = append(args, filtros.FechaDesde)
+			argIdx++
+		}
+
+		// Filtro por fecha hasta
+		if filtros.FechaHasta != "" {
+			whereClauses = append(whereClauses, fmt.Sprintf("c.fecha_creacion <= $%d::date + interval '1 day'", argIdx))
+			args = append(args, filtros.FechaHasta)
+			argIdx++
+		}
+	}
+
+	whereSQL := ""
+	if len(whereClauses) > 0 {
+		whereSQL = "WHERE " + strings.Join(whereClauses, " AND ")
+	}
+
+	// Contar total con filtros
+	countQuery := fmt.Sprintf(`
+		SELECT COUNT(*)
+		FROM cotizaciones c
+		JOIN clientes cl ON cl.id = c.cliente_id
+		%s
+	`, whereSQL)
+
 	var total int
-	err := r.db.QueryRow("SELECT COUNT(*) FROM cotizaciones").Scan(&total)
+	err := r.db.QueryRow(countQuery, args...).Scan(&total)
 	if err != nil {
 		return nil, 0, fmt.Errorf("error al contar cotizaciones: %w", err)
 	}
 
+	// Determinar ordenamiento
+	orderClause := "c.fecha_creacion DESC"
+	if filtros != nil && filtros.OrdenarPor != "" {
+		validOrders := map[string]string{
+			"fecha":       "c.fecha_creacion",
+			"cliente":     "cl.nombre",
+			"estado":      "c.estado",
+			"total":       "c.total_cotizado",
+			"descripcion": "c.descripcion_obra",
+		}
+		if col, ok := validOrders[filtros.OrdenarPor]; ok {
+			dir := "DESC"
+			if filtros.OrdenDir == "ASC" {
+				dir = "ASC"
+			}
+			orderClause = col + " " + dir
+		}
+	}
+
 	offset := (page - 1) * pageSize
-	query := `
+	query := fmt.Sprintf(`
 		SELECT c.id, c.cliente_id, c.descripcion_obra, c.estado, c.total_cotizado,
 		       c.porcentaje_margen, c.fecha_creacion, c.fecha_actualizacion,
 		       cl.nombre
 		FROM cotizaciones c
 		JOIN clientes cl ON cl.id = c.cliente_id
-		ORDER BY c.fecha_creacion DESC
-		LIMIT $1 OFFSET $2
-	`
+		%s
+		ORDER BY %s
+		LIMIT $%d OFFSET $%d
+	`, whereSQL, orderClause, argIdx, argIdx+1)
 
-	rows, err := r.db.Query(query, pageSize, offset)
+	args = append(args, pageSize, offset)
+
+	rows, err := r.db.Query(query, args...)
 	if err != nil {
 		return nil, 0, fmt.Errorf("error al listar cotizaciones: %w", err)
 	}

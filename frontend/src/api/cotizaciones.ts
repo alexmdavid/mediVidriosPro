@@ -77,11 +77,24 @@ export async function obtenerCotizacion(
 }
 
 /**
- * Listar cotizaciones paginadas.
+ * Filtros para buscar cotizaciones.
+ */
+export interface FiltrosCotizacion {
+  buscar?: string
+  estado?: string
+  fecha_desde?: string
+  fecha_hasta?: string
+  ordenar_por?: string
+  orden_dir?: string
+}
+
+/**
+ * Listar cotizaciones paginadas con filtros opcionales.
  */
 export async function listarCotizaciones(
   page: number = 1,
-  pageSize: number = 20
+  pageSize: number = 20,
+  filtros?: FiltrosCotizacion
 ): Promise<{
   data: Array<{
     id: number
@@ -92,13 +105,27 @@ export async function listarCotizaciones(
     porcentaje_margen: number
     fecha_creacion: string
     fecha_actualizacion: string
+    cliente?: { id: number; nombre: string }
   }>
   total: number
   page: number
   pageSize: number
   totalPages: number
 }> {
-  return apiRequest(`/cotizaciones?page=${page}&pageSize=${pageSize}`)
+  const params = new URLSearchParams()
+  params.set('page', page.toString())
+  params.set('pageSize', pageSize.toString())
+
+  if (filtros) {
+    if (filtros.buscar) params.set('buscar', filtros.buscar)
+    if (filtros.estado) params.set('estado', filtros.estado)
+    if (filtros.fecha_desde) params.set('fecha_desde', filtros.fecha_desde)
+    if (filtros.fecha_hasta) params.set('fecha_hasta', filtros.fecha_hasta)
+    if (filtros.ordenar_por) params.set('ordenar_por', filtros.ordenar_por)
+    if (filtros.orden_dir) params.set('orden_dir', filtros.orden_dir)
+  }
+
+  return apiRequest(`/cotizaciones?${params.toString()}`)
 }
 
 /**

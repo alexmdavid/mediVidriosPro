@@ -111,6 +111,16 @@ type CalcularItemResult struct {
 	ConMargen   float64        `json:"con_margen"`
 }
 
+// FiltrosCotizacion contiene los parámetros de búsqueda/filtro para listar cotizaciones.
+type FiltrosCotizacion struct {
+	Buscar     string `json:"buscar"`      // Búsqueda por nombre de cliente o descripción
+	Estado     string `json:"estado"`      // Filtrar por estado
+	FechaDesde string `json:"fecha_desde"` // Fecha inicio (YYYY-MM-DD)
+	FechaHasta string `json:"fecha_hasta"` // Fecha fin (YYYY-MM-DD)
+	OrdenarPor string `json:"ordenar_por"` // Campo de ordenamiento
+	OrdenDir   string `json:"orden_dir"`   // ASC o DESC
+}
+
 // ErrorResponse estandariza los errores de la API.
 type ErrorResponse struct {
 	Error   string `json:"error"`

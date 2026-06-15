@@ -283,15 +283,15 @@ func (s *CotizacionService) ObtenerCotizacion(id int) (*domain.CotizacionRespons
 	}, nil
 }
 
-// ListarCotizaciones retorna una lista paginada de cotizaciones.
-func (s *CotizacionService) ListarCotizaciones(page, pageSize int) ([]domain.Cotizacion, int, error) {
+// ListarCotizaciones retorna una lista paginada de cotizaciones con filtros.
+func (s *CotizacionService) ListarCotizaciones(page, pageSize int, filtros *domain.FiltrosCotizacion) ([]domain.Cotizacion, int, error) {
 	if page < 1 {
 		page = 1
 	}
 	if pageSize < 1 || pageSize > 100 {
 		pageSize = 20
 	}
-	return s.cotizacionRepo.Listar(page, pageSize)
+	return s.cotizacionRepo.Listar(page, pageSize, filtros)
 }
 
 // =============================================================

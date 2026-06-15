@@ -26,6 +26,6 @@ type CotizacionRepository interface {
 	Crear(cotizacion *Cotizacion, items []ItemCotizacion) (int, error)
 	// ObtenerPorID retorna una cotización completa con items y cliente.
 	ObtenerPorID(id int) (*Cotizacion, error)
-	// Listar retorna todas las cotizaciones (paginado).
-	Listar(page, pageSize int) ([]Cotizacion, int, error)
+	// Listar retorna cotizaciones filtradas y paginadas.
+	Listar(page, pageSize int, filtros *FiltrosCotizacion) ([]Cotizacion, int, error)
 }
