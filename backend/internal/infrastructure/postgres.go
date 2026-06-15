@@ -416,7 +416,7 @@ func (r *CotizacionRepository) Crear(cotizacion *domain.Cotizacion, items []doma
 		for _, item := range items {
 			_, err = tx.Exec(queryItems,
 				cotizacionID,
-n dos				item.TipoItem,
+				item.TipoItem,
 				item.AnchoMT,
 				item.AltoMT,
 				item.Cantidad,
