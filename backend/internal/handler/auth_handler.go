@@ -22,6 +22,11 @@ import (
 // Auth Handler - Login, Registro, Gestión de usuarios
 // =============================================================
 
+// keyType es un tipo interno para las llaves del contexto, evitando colisiones.
+type keyType string
+
+const claimsKey keyType = "claims"
+
 var jwtSecret []byte
 
 func init() {
@@ -270,7 +275,9 @@ func (h *AuthHandler) GoogleLogin(w http.ResponseWriter, r *http.Request) {
 			h.service.SincronizarClienteDesdeUsuario(usuario.Nombre, usuario.Email, "")
 		}
 	} else {
-		log.Printf("🔐 Google Login: usuario encontrado ID=%d", usuario.ID)
+		log.Printf("🔐 Google Login: usuario encontrado ID=%d, sincronizando cliente", usuario.ID)
+		// Sincronizar: asegurar que exista registro en tabla clientes
+		h.service.SincronizarClienteDesdeUsuario(usuario.Nombre, usuario.Email, "")
 	}
 
 	token, err := generarToken(usuario)
@@ -290,13 +297,14 @@ func (h *AuthHandler) GoogleLogin(w http.ResponseWriter, r *http.Request) {
 // =============================================================
 
 func (h *AuthHandler) Perfil(w http.ResponseWriter, r *http.Request) {
-	log.Printf("✅ PERFIL HANDLER: Petición recibida para /api/auth/perfil")
 	claims := ObtenerClaims(r)
 	if claims == nil {
+		log.Printf("⚠️ PERFIL: Intento de acceso sin claims en el contexto")
 		sendError(w, http.StatusUnauthorized, "No autenticado", "")
 		return
 	}
 
+	log.Printf("🔍 PERFIL: Consultando datos para UsuarioID=%d (Email: %s)", claims.UsuarioID, claims.Email)
 	usuario, err := h.service.ObtenerUsuarioPorID(claims.UsuarioID)
 	if err != nil || usuario == nil {
 		sendError(w, http.StatusNotFound, "Usuario no encontrado", "")
@@ -444,12 +452,14 @@ func AuthMiddleware(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		authHeader := r.Header.Get("Authorization")
 		if authHeader == "" {
+			log.Printf("⚠️ AUTH: Falta header de Authorization en %s", r.URL.Path)
 			sendJSON(w, http.StatusUnauthorized, domain.ErrorResponse{Error: "Token de autenticación requerido"})
 			return
 		}
 
 		parts := strings.SplitN(authHeader, " ", 2)
 		if len(parts) != 2 || strings.ToLower(parts[0]) != "bearer" {
+			log.Printf("⚠️ AUTH: Formato de token inválido")
 			sendJSON(w, http.StatusUnauthorized, domain.ErrorResponse{Error: "Formato de token inválido"})
 			return
 		}
@@ -459,19 +469,19 @@ func AuthMiddleware(next http.HandlerFunc) http.HandlerFunc {
 		})
 
 		if err != nil || !token.Valid {
+			log.Printf("⚠️ AUTH: Token inválido o expirado: %v", err)
 			sendJSON(w, http.StatusUnauthorized, domain.ErrorResponse{Error: "Token inválido o expirado"})
 			return
 		}
 
 		claims, ok := token.Claims.(*AuthClaims)
 		if !ok {
+			log.Printf("⚠️ AUTH: No se pudieron extraer claims del token")
 			sendJSON(w, http.StatusUnauthorized, domain.ErrorResponse{Error: "Claims inválidos"})
 			return
 		}
 
-		// Guardar claims en el contexto (usando URL para simplificar)
-		ctx := r.Context()
-		ctx = context.WithValue(ctx, "claims", claims)
+		ctx := context.WithValue(r.Context(), claimsKey, claims)
 		next(w, r.WithContext(ctx))
 	}
 }
@@ -480,7 +490,13 @@ func AuthMiddleware(next http.HandlerFunc) http.HandlerFunc {
 func AdminMiddleware(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		claims := ObtenerClaims(r)
-		if claims == nil || claims.Rol != "admin" {
+		if claims == nil {
+			log.Printf("🚫 ADMIN: Acceso denegado, no hay claims en la petición %s", r.URL.Path)
+			sendJSON(w, http.StatusForbidden, domain.ErrorResponse{Error: "Acceso restringido a administradores"})
+			return
+		}
+		if claims.Rol != "admin" {
+			log.Printf("🚫 ADMIN: Acceso denegado. UsuarioID=%d tiene rol '%s' y requiere 'admin'", claims.UsuarioID, claims.Rol)
 			sendJSON(w, http.StatusForbidden, domain.ErrorResponse{Error: "Acceso restringido a administradores"})
 			return
 		}
@@ -490,7 +506,7 @@ func AdminMiddleware(next http.HandlerFunc) http.HandlerFunc {
 
 // ObtenerClaims extrae los claims del contexto.
 func ObtenerClaims(r *http.Request) *AuthClaims {
-	claims, ok := r.Context().Value("claims").(*AuthClaims)
+	claims, ok := r.Context().Value(claimsKey).(*AuthClaims)
 	if !ok {
 		return nil
 	}
