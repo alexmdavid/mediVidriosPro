@@ -325,9 +325,9 @@ func (h *CotizacionHandler) CambiarEstadoHandler(w http.ResponseWriter, r *http.
 	}
 
 	// Validar estado permitido
-	estadosValidos := map[string]bool{"borrador": true, "enviada": true, "aprobada": true, "rechazada": true, "facturada": true}
+	estadosValidos := map[string]bool{"Borrador": true, "Enviada": true, "Aprobada": true, "Rechazada": true, "Facturada": true}
 	if !estadosValidos[req.Estado] {
-		sendError(w, http.StatusBadRequest, "Estado inválido. Estados permitidos: borrador, enviada, aprobada, rechazada, facturada", "")
+		sendError(w, http.StatusBadRequest, "Estado inválido. Estados permitidos: Borrador, Enviada, Aprobada, Rechazada, Facturada", "")
 		return
 	}
 
@@ -337,14 +337,16 @@ func (h *CotizacionHandler) CambiarEstadoHandler(w http.ResponseWriter, r *http.
 		return
 	}
 
+	log.Printf("🔄 Estado de cotización %d actualizado a %s", id, req.Estado)
+
 	// Si el estado es "enviada", enviar notificación por correo
-	if req.Estado == "enviada" {
+	if strings.ToLower(req.Estado) == "enviada" {
 		if sendErr := h.service.NotificarCotizacionEnviada(id); sendErr != nil {
 			log.Printf("⚠️ HANDLER: Error al notificar cotización #%d: %v", id, sendErr)
 		}
 	}
 
-	sendJSON(w, http.StatusOK, map[string]string{"mensaje": "Estado actualizado correctamente", "estado": req.Estado})
+	sendJSON(w, http.StatusOK, map[string]string{"message": "Estado actualizado correctamente"})
 }
 
 // =============================================================

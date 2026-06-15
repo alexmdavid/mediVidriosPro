@@ -679,6 +679,7 @@ func (r *CotizacionRepository) Actualizar(id int, req *domain.ActualizarCotizaci
 		return nil
 	}
 
+	sets = append(sets, "fecha_actualizacion = NOW()")
 	args = append(args, id)
 	query := fmt.Sprintf("UPDATE cotizaciones SET %s WHERE id = $%d", strings.Join(sets, ", "), argIdx)
 
