@@ -322,7 +322,7 @@ func (r *CotizacionRepository) ObtenerPorID(id int) (*domain.Cotizacion, error) 
 	queryCot := `
 		SELECT c.id, c.cliente_id, c.descripcion_obra, c.estado, c.total_cotizado,
 		       c.porcentaje_margen, c.fecha_creacion, c.fecha_actualizacion,
-		       cl.nombre, cl.telefono, cl.email, cl.direccion, cl.notas
+		       cl.id, cl.nombre, cl.telefono, cl.email, cl.direccion, cl.notas
 		FROM cotizaciones c
 		JOIN clientes cl ON cl.id = c.cliente_id
 		WHERE c.id = $1
