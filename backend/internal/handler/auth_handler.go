@@ -283,6 +283,7 @@ func (h *AuthHandler) GoogleLogin(w http.ResponseWriter, r *http.Request) {
 // =============================================================
 
 func (h *AuthHandler) Perfil(w http.ResponseWriter, r *http.Request) {
+	log.Printf("✅ PERFIL HANDLER: Petición recibida para /api/auth/perfil")
 	claims := ObtenerClaims(r)
 	if claims == nil {
 		sendError(w, http.StatusUnauthorized, "No autenticado", "")
