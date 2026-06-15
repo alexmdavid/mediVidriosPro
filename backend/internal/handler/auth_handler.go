@@ -3,6 +3,7 @@ package handler
 import (
 	"context"
 	"encoding/json"
+	"log"
 	"net/http"
 	"os"
 	"strconv"
@@ -188,23 +189,36 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 // =============================================================
 
 func (h *AuthHandler) GoogleLogin(w http.ResponseWriter, r *http.Request) {
+	log.Printf("🔐 Google Login: recibido request desde %s", r.RemoteAddr)
+
 	var req domain.GoogleLoginRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		log.Printf("❌ Google Login: JSON inválido: %v", err)
 		sendError(w, http.StatusBadRequest, "JSON inválido", err.Error())
 		return
 	}
 
+	log.Printf("🔐 Google Login: email=%s, google_id=%s, nombre=%s", req.Email, req.GoogleID, req.Nombre)
+
 	if req.GoogleID == "" || req.Email == "" {
+		log.Printf("❌ Google Login: campos obligatorios faltantes")
 		sendError(w, http.StatusBadRequest, "Google ID y email son obligatorios", "")
 		return
 	}
 
 	// Buscar usuario existente por Google ID
-	usuario, _ := h.service.ObtenerUsuarioPorGoogleID(req.GoogleID)
+	usuario, err := h.service.ObtenerUsuarioPorGoogleID(req.GoogleID)
+	if err != nil {
+		log.Printf("⚠️ Google Login: error al buscar por Google ID: %v", err)
+	}
 	if usuario == nil {
 		// Buscar por email
-		usuario, _ = h.service.ObtenerUsuarioPorEmail(req.Email)
+		usuario, err = h.service.ObtenerUsuarioPorEmail(req.Email)
+		if err != nil {
+			log.Printf("⚠️ Google Login: error al buscar por email: %v", err)
+		}
 		if usuario == nil {
+			log.Printf("🔐 Google Login: creando nuevo usuario para %s", req.Email)
 			// Crear nuevo usuario
 			nuevoUsuario := &domain.Usuario{
 				Nombre:   req.Nombre,
@@ -215,15 +229,20 @@ func (h *AuthHandler) GoogleLogin(w http.ResponseWriter, r *http.Request) {
 			}
 			id, err := h.service.CrearUsuario(nuevoUsuario)
 			if err != nil {
+				log.Printf("❌ Google Login: error al crear usuario: %v", err)
 				sendError(w, http.StatusInternalServerError, "Error al crear usuario", err.Error())
 				return
 			}
 			nuevoUsuario.ID = id
 			usuario = nuevoUsuario
+			log.Printf("✅ Google Login: usuario creado con ID %d", id)
 		} else {
+			log.Printf("🔐 Google Login: vinculando Google ID a usuario existente %d", usuario.ID)
 			// Vincular Google ID
 			usuario.GoogleID = strPtr(req.GoogleID)
 		}
+	} else {
+		log.Printf("🔐 Google Login: usuario encontrado ID=%d", usuario.ID)
 	}
 
 	token, err := generarToken(usuario)

@@ -51,7 +51,8 @@ export default function LoginPage() {
         window.google.accounts.id.initialize({
           client_id: clientId,
           callback: handleGoogleCredential,
-        })
+          auto_select: false,
+        } as any)
         if (googleBtnRef.current) {
           window.google.accounts.id.renderButton(googleBtnRef.current, {
             theme: 'outline',

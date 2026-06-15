@@ -99,7 +99,14 @@ func main() {
 		MaxAge:           43200, // 12 hours in seconds
 	})
 
-	handler := c.Handler(router)
+	// Middleware para agregar headers COOP/COEP (necesario para Google Identity Services)
+	coOpHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Cross-Origin-Opener-Policy", "same-origin-allow-popups")
+		w.Header().Set("Cross-Origin-Embedder-Policy", "unsafe-none")
+		c.Handler(router).ServeHTTP(w, r)
+	})
+
+	handler := coOpHandler
 
 	// ---- Iniciar servidor ----
 	serverAddr := fmt.Sprintf(":%s", port)
