@@ -1,4 +1,7 @@
 import { useState } from 'react'
+import { AuthProvider, useAuth } from './features/auth/AuthContext'
+import LoginPage from './features/auth/LoginPage'
+import ClientPortal from './features/auth/ClientPortal'
 import CotizacionForm from './features/cotizaciones/CotizacionForm'
 import CotizacionList from './features/cotizaciones/CotizacionList'
 import CotizacionDetalle from './features/cotizaciones/CotizacionDetalle'
@@ -6,27 +9,74 @@ import CotizacionDetalle from './features/cotizaciones/CotizacionDetalle'
 // =============================================================
 // Tipos de vista
 // =============================================================
-type VistaApp = 'lista' | 'nueva' | 'detalle'
+type VistaAdmin = 'lista' | 'nueva' | 'detalle'
 
-function App() {
-  const [vista, setVista] = useState<VistaApp>('lista')
-  const [cotizacionDetalleId, setCotizacionDetalleId] = useState<number | null>(null)
+// =============================================================
+// App con autenticación
+// =============================================================
 
-  // ---- Navegación ----
-  const irALista = () => {
-    setVista('lista')
-    setCotizacionDetalleId(null)
+function AppContent() {
+  const { usuario, cargando, isAdmin, logout } = useAuth()
+
+  // ---- Estado del admin ----
+  const [vistaAdmin, setVistaAdmin] = useState<VistaAdmin>('lista')
+  const [detalleId, setDetalleId] = useState<number | null>(null)
+
+  // ---- Loading ----
+  if (cargando) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <svg className="animate-spin h-10 w-10 text-primary-600 mx-auto" viewBox="0 0 24 24">
+            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+          </svg>
+          <p className="text-gray-500 mt-3">Cargando...</p>
+        </div>
+      </div>
+    )
   }
 
-  const irANueva = () => {
-    setVista('nueva')
-    setCotizacionDetalleId(null)
+  // ---- Sin sesión: Login ----
+  if (!usuario) {
+    return <LoginPage />
   }
 
-  const irADetalle = (id: number) => {
-    setVista('detalle')
-    setCotizacionDetalleId(id)
+  // ---- Vista del cliente ----
+  if (usuario.rol === 'cliente') {
+    return (
+      <div className="min-h-screen bg-gray-50">
+        <header className="bg-white border-b border-gray-200 shadow-sm">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="flex items-center justify-between h-16">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-primary-600 rounded-lg flex items-center justify-center">
+                  <svg className="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6A2.25 2.25 0 016 3.75h2.25A2.25 2.25 0 0110.5 6v2.25a2.25 2.25 0 01-2.25 2.25H6a2.25 2.25 0 01-2.25-2.25V6zM3.75 15.75A2.25 2.25 0 016 13.5h2.25a2.25 2.25 0 012.25 2.25V18a2.25 2.25 0 01-2.25 2.25H6A2.25 2.25 0 013.75 18v-2.25zM13.5 6a2.25 2.25 0 012.25-2.25H18A2.25 2.25 0 0120.25 6v2.25A2.25 2.25 0 0118 10.5h-2.25a2.25 2.25 0 01-2.25-2.25V6zM13.5 15.75a2.25 2.25 0 012.25-2.25H18a2.25 2.25 0 012.25 2.25V18A2.25 2.25 0 0118 20.25h-2.25A2.25 2.25 0 0113.5 18v-2.25z" />
+                  </svg>
+                </div>
+                <div>
+                  <h1 className="text-xl font-bold text-gray-900">mediVidrios</h1>
+                  <p className="text-xs text-gray-500 -mt-0.5">Portal del Cliente</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-4">
+                <span className="text-sm text-gray-500">{usuario.nombre}</span>
+              </div>
+            </div>
+          </div>
+        </header>
+        <main className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          <ClientPortal />
+        </main>
+      </div>
+    )
   }
+
+  // ---- Vista del admin ----
+  const irALista = () => { setVistaAdmin('lista'); setDetalleId(null) }
+  const irANueva = () => { setVistaAdmin('nueva'); setDetalleId(null) }
+  const irADetalle = (id: number) => { setVistaAdmin('detalle'); setDetalleId(id) }
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -35,36 +85,23 @@ function App() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
             <div className="flex items-center gap-3">
-              {/* Logo / Icono */}
               <div className="w-10 h-10 bg-primary-600 rounded-lg flex items-center justify-center">
-                <svg
-                  className="w-6 h-6 text-white"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  strokeWidth={1.5}
-                  stroke="currentColor"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    d="M3.75 6A2.25 2.25 0 016 3.75h2.25A2.25 2.25 0 0110.5 6v2.25a2.25 2.25 0 01-2.25 2.25H6a2.25 2.25 0 01-2.25-2.25V6zM3.75 15.75A2.25 2.25 0 016 13.5h2.25a2.25 2.25 0 012.25 2.25V18a2.25 2.25 0 01-2.25 2.25H6A2.25 2.25 0 013.75 18v-2.25zM13.5 6a2.25 2.25 0 012.25-2.25H18A2.25 2.25 0 0120.25 6v2.25A2.25 2.25 0 0118 10.5h-2.25a2.25 2.25 0 01-2.25-2.25V6zM13.5 15.75a2.25 2.25 0 012.25-2.25H18a2.25 2.25 0 012.25 2.25V18A2.25 2.25 0 0118 20.25h-2.25A2.25 2.25 0 0113.5 18v-2.25z"
-                  />
+                <svg className="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6A2.25 2.25 0 016 3.75h2.25A2.25 2.25 0 0110.5 6v2.25a2.25 2.25 0 01-2.25 2.25H6a2.25 2.25 0 01-2.25-2.25V6zM3.75 15.75A2.25 2.25 0 016 13.5h2.25a2.25 2.25 0 012.25 2.25V18a2.25 2.25 0 01-2.25 2.25H6A2.25 2.25 0 013.75 18v-2.25zM13.5 6a2.25 2.25 0 012.25-2.25H18A2.25 2.25 0 0120.25 6v2.25A2.25 2.25 0 0118 10.5h-2.25a2.25 2.25 0 01-2.25-2.25V6zM13.5 15.75a2.25 2.25 0 012.25-2.25H18a2.25 2.25 0 012.25 2.25V18A2.25 2.25 0 0118 20.25h-2.25A2.25 2.25 0 0113.5 18v-2.25z" />
                 </svg>
               </div>
               <div>
                 <h1 className="text-xl font-bold text-gray-900">mediVidrios</h1>
-                <p className="text-xs text-gray-500 -mt-0.5">Sistema de Cotizaciones</p>
+                <p className="text-xs text-gray-500 -mt-0.5">Panel Administrativo</p>
               </div>
             </div>
 
-            {/* Navegación */}
+            {/* Navegación admin */}
             <nav className="flex items-center gap-1">
               <button
                 onClick={irALista}
                 className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
-                  vista === 'lista'
-                    ? 'bg-primary-50 text-primary-700'
-                    : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+                  vistaAdmin === 'lista' ? 'bg-primary-50 text-primary-700' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
                 }`}
               >
                 <span className="flex items-center gap-2">
@@ -77,9 +114,7 @@ function App() {
               <button
                 onClick={irANueva}
                 className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
-                  vista === 'nueva'
-                    ? 'bg-primary-50 text-primary-700'
-                    : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+                  vistaAdmin === 'nueva' ? 'bg-primary-50 text-primary-700' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
                 }`}
               >
                 <span className="flex items-center gap-2">
@@ -92,36 +127,38 @@ function App() {
             </nav>
 
             <div className="hidden md:flex items-center gap-4">
-              <span className="text-sm text-gray-500">
-                {new Date().toLocaleDateString('es-CO', {
-                  weekday: 'long',
-                  year: 'numeric',
-                  month: 'long',
-                  day: 'numeric',
-                })}
-              </span>
+              <span className="text-sm text-gray-500">{usuario.nombre}</span>
+              <button onClick={logout} className="text-sm text-gray-500 hover:text-gray-700 font-medium">
+                Salir
+              </button>
             </div>
           </div>
         </div>
       </header>
 
-      {/* Contenido principal */}
+      {/* Contenido */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {vista === 'lista' && (
-          <CotizacionList
-            onVerDetalle={irADetalle}
-            onCrearNueva={irANueva}
-          />
+        {vistaAdmin === 'lista' && (
+          <CotizacionList onVerDetalle={irADetalle} onCrearNueva={irANueva} />
         )}
-        {vista === 'nueva' && <CotizacionForm />}
-        {vista === 'detalle' && cotizacionDetalleId !== null && (
-          <CotizacionDetalle
-            cotizacionId={cotizacionDetalleId}
-            onVolver={irALista}
-          />
+        {vistaAdmin === 'nueva' && <CotizacionForm />}
+        {vistaAdmin === 'detalle' && detalleId !== null && (
+          <CotizacionDetalle cotizacionId={detalleId} onVolver={irALista} />
         )}
       </main>
     </div>
+  )
+}
+
+// =============================================================
+// Wrapper con AuthProvider
+// =============================================================
+
+function App() {
+  return (
+    <AuthProvider>
+      <AppContent />
+    </AuthProvider>
   )
 }
 

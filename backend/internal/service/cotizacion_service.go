@@ -17,6 +17,7 @@ type CotizacionService struct {
 	tipoVidrioRepo domain.TipoVidrioRepository
 	clienteRepo    domain.ClienteRepository
 	cotizacionRepo domain.CotizacionRepository
+	usuarioRepo    domain.UsuarioRepository
 }
 
 // NewCotizacionService crea una nueva instancia del servicio.
@@ -24,11 +25,13 @@ func NewCotizacionService(
 	tvRepo domain.TipoVidrioRepository,
 	cliRepo domain.ClienteRepository,
 	cotRepo domain.CotizacionRepository,
+	usrRepo domain.UsuarioRepository,
 ) *CotizacionService {
 	return &CotizacionService{
 		tipoVidrioRepo: tvRepo,
 		clienteRepo:    cliRepo,
 		cotizacionRepo: cotRepo,
+		usuarioRepo:    usrRepo,
 	}
 }
 
@@ -292,6 +295,64 @@ func (s *CotizacionService) ListarCotizaciones(page, pageSize int, filtros *doma
 		pageSize = 20
 	}
 	return s.cotizacionRepo.Listar(page, pageSize, filtros)
+}
+
+// =============================================================
+// Gestión de usuarios
+// =============================================================
+
+// CrearUsuario inserta un nuevo usuario.
+func (s *CotizacionService) CrearUsuario(usuario *domain.Usuario) (int, error) {
+	return s.usuarioRepo.Crear(usuario)
+}
+
+// ObtenerUsuarioPorID retorna un usuario por ID.
+func (s *CotizacionService) ObtenerUsuarioPorID(id int) (*domain.Usuario, error) {
+	return s.usuarioRepo.ObtenerPorID(id)
+}
+
+// ObtenerUsuarioPorEmail retorna un usuario por email.
+func (s *CotizacionService) ObtenerUsuarioPorEmail(email string) (*domain.Usuario, error) {
+	return s.usuarioRepo.ObtenerPorEmail(email)
+}
+
+// ObtenerUsuarioPorGoogleID retorna un usuario por Google ID.
+func (s *CotizacionService) ObtenerUsuarioPorGoogleID(googleID string) (*domain.Usuario, error) {
+	return s.usuarioRepo.ObtenerPorGoogleID(googleID)
+}
+
+// ListarUsuarios retorna una lista paginada de usuarios.
+func (s *CotizacionService) ListarUsuarios(page, pageSize int) ([]domain.Usuario, int, error) {
+	return s.usuarioRepo.Listar(page, pageSize)
+}
+
+// EliminarUsuario elimina un usuario por ID.
+func (s *CotizacionService) EliminarUsuario(id int) error {
+	return s.usuarioRepo.Eliminar(id)
+}
+
+// =============================================================
+// Gestión de cotizaciones (admin + cliente)
+// =============================================================
+
+// ActualizarCotizacion actualiza campos de una cotización.
+func (s *CotizacionService) ActualizarCotizacion(id int, req *domain.ActualizarCotizacionRequest) error {
+	return s.cotizacionRepo.Actualizar(id, req)
+}
+
+// EliminarCotizacion elimina una cotización.
+func (s *CotizacionService) EliminarCotizacion(id int) error {
+	return s.cotizacionRepo.Eliminar(id)
+}
+
+// ListarCotizacionesPorCliente retorna cotizaciones asignadas a un cliente.
+func (s *CotizacionService) ListarCotizacionesPorCliente(usuarioID, page, pageSize int) ([]domain.Cotizacion, int, error) {
+	return s.cotizacionRepo.ListarPorCliente(usuarioID, page, pageSize)
+}
+
+// ResponderCotizacion permite al cliente aceptar/rechazar una cotización.
+func (s *CotizacionService) ResponderCotizacion(cotizacionID int, aceptada bool, notas string) error {
+	return s.cotizacionRepo.ResponderCotizacion(cotizacionID, aceptada, notas)
 }
 
 // =============================================================

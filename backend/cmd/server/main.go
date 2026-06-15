@@ -70,9 +70,11 @@ func main() {
 		db.TipoVidrioRepo,
 		db.ClienteRepo,
 		db.CotizacionRepo,
+		db.UsuarioRepo,
 	)
 
 	cotizacionHandler := handler.NewCotizacionHandler(cotizacionService)
+	authHandler := handler.NewAuthHandler(cotizacionService)
 
 	// ---- Configurar router ----
 	router := mux.NewRouter()
@@ -86,7 +88,8 @@ func main() {
 
 	// Registrar rutas de la API
 	cotizacionHandler.RegisterRoutes(router)
-
+	authHandler.RegisterRoutes(router)
+	rno
 	// ---- Configurar CORS ----
 	c := cors.New(cors.Options{
 		AllowedOrigins:   []string{"http://localhost:5173", "http://localhost:3000", "http://localhost:5174", "https://medividriospro-1.onrender.com"},

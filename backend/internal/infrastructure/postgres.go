@@ -24,6 +24,7 @@ type PostgresDB struct {
 	TipoVidrioRepo *TipoVidrioRepository
 	ClienteRepo    *ClienteRepository
 	CotizacionRepo *CotizacionRepository
+	UsuarioRepo    *UsuarioRepository
 }
 
 // NewPostgresDB crea la conexión y los repositorios.
@@ -49,6 +50,7 @@ func NewPostgresDB(databaseURL string) (*PostgresDB, error) {
 		TipoVidrioRepo: &TipoVidrioRepository{db: db},
 		ClienteRepo:    &ClienteRepository{db: db},
 		CotizacionRepo: &CotizacionRepository{db: db},
+		UsuarioRepo:    &UsuarioRepository{db: db},
 	}, nil
 }
 
@@ -500,6 +502,259 @@ func (r *CotizacionRepository) Listar(page, pageSize int, filtros *domain.Filtro
 	}
 
 	return cotizaciones, total, nil
+}
+
+// Actualizar actualiza campos de una cotización existente.
+func (r *CotizacionRepository) Actualizar(id int, req *domain.ActualizarCotizacionRequest) error {
+	sets := []string{}
+	args := []interface{}{}
+	argIdx := 1
+
+	if req.Estado != "" {
+		sets = append(sets, fmt.Sprintf("estado = $%d", argIdx))
+		args = append(args, req.Estado)
+		argIdx++
+	}
+	if req.TotalCotizado > 0 {
+		sets = append(sets, fmt.Sprintf("total_cotizado = $%d", argIdx))
+		args = append(args, req.TotalCotizado)
+		argIdx++
+	}
+	if req.PorcentajeMargen > 0 {
+		sets = append(sets, fmt.Sprintf("porcentaje_margen = $%d", argIdx))
+		args = append(args, req.PorcentajeMargen)
+		argIdx++
+	}
+	if req.UsuarioClienteID != nil {
+		sets = append(sets, fmt.Sprintf("usuario_cliente_id = $%d", argIdx))
+		args = append(args, *req.UsuarioClienteID)
+		argIdx++
+	}
+
+	if len(sets) == 0 {
+		return nil
+	}
+
+	args = append(args, id)
+	query := fmt.Sprintf("UPDATE cotizaciones SET %s WHERE id = $%d", strings.Join(sets, ", "), argIdx)
+
+	_, err := r.db.Exec(query, args...)
+	if err != nil {
+		return fmt.Errorf("error al actualizar cotización %d: %w", id, err)
+	}
+	return nil
+}
+
+// Eliminar elimina una cotización y sus items.
+func (r *CotizacionRepository) Eliminar(id int) error {
+	tx, err := r.db.Begin()
+	if err != nil {
+		return fmt.Errorf("error al iniciar transacción: %w", err)
+	}
+	defer tx.Rollback()
+
+	_, err = tx.Exec("DELETE FROM items_cotizacion WHERE cotizacion_id = $1", id)
+	if err != nil {
+		return fmt.Errorf("error al eliminar items: %w", err)
+	}
+
+	_, err = tx.Exec("DELETE FROM cotizaciones WHERE id = $1", id)
+	if err != nil {
+		return fmt.Errorf("error al eliminar cotización: %w", err)
+	}
+
+	return tx.Commit()
+}
+
+// ListarPorCliente retorna cotizaciones asignadas a un usuario cliente.
+func (r *CotizacionRepository) ListarPorCliente(usuarioID int, page, pageSize int) ([]domain.Cotizacion, int, error) {
+	var total int
+	err := r.db.QueryRow("SELECT COUNT(*) FROM cotizaciones WHERE usuario_cliente_id = $1", usuarioID).Scan(&total)
+	if err != nil {
+		return nil, 0, fmt.Errorf("error al contar cotizaciones del cliente: %w", err)
+	}
+
+	offset := (page - 1) * pageSize
+	query := `
+		SELECT c.id, c.cliente_id, c.descripcion_obra, c.estado, c.total_cotizado,
+		       c.porcentaje_margen, c.fecha_creacion, c.fecha_actualizacion,
+		       cl.nombre
+		FROM cotizaciones c
+		JOIN clientes cl ON cl.id = c.cliente_id
+		WHERE c.usuario_cliente_id = $1
+		ORDER BY c.fecha_creacion DESC
+		LIMIT $2 OFFSET $3
+	`
+
+	rows, err := r.db.Query(query, usuarioID, pageSize, offset)
+	if err != nil {
+		return nil, 0, fmt.Errorf("error al listar cotizaciones del cliente: %w", err)
+	}
+	defer rows.Close()
+
+	var cotizaciones []domain.Cotizacion
+	for rows.Next() {
+		var cot domain.Cotizacion
+		var nombreCliente string
+		if err := rows.Scan(
+			&cot.ID, &cot.ClienteID, &cot.DescripcionObra, &cot.Estado,
+			&cot.TotalCotizado, &cot.PorcentajeMargen,
+			&cot.FechaCreacion, &cot.FechaActualizacion,
+			&nombreCliente,
+		); err != nil {
+			return nil, 0, fmt.Errorf("error al escanear cotización: %w", err)
+		}
+		cot.Cliente = &domain.Cliente{ID: cot.ClienteID, Nombre: nombreCliente}
+		cotizaciones = append(cotizaciones, cot)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, 0, fmt.Errorf("error al iterar cotizaciones: %w", err)
+	}
+
+	return cotizaciones, total, nil
+}
+
+// ResponderCotizacion permite al cliente aceptar o rechazar una cotización.
+func (r *CotizacionRepository) ResponderCotizacion(cotizacionID int, aceptada bool, notas string) error {
+	query := `UPDATE cotizaciones SET aceptada_cliente = $1, notas_cliente = $2 WHERE id = $3`
+	_, err := r.db.Exec(query, aceptada, notas, cotizacionID)
+	if err != nil {
+		return fmt.Errorf("error al responder cotización %d: %w", cotizacionID, err)
+	}
+	return nil
+}
+
+// =============================================================
+// UsuarioRepository - Implementación PostgreSQL
+// =============================================================
+
+// UsuarioRepository implementa domain.UsuarioRepository para PostgreSQL.
+type UsuarioRepository struct {
+	db *sql.DB
+}
+
+// Crear inserta un nuevo usuario y retorna su ID.
+func (r *UsuarioRepository) Crear(usuario *domain.Usuario) (int, error) {
+	query := `
+		INSERT INTO usuarios (nombre, email, password_hash, google_id, rol, telefono)
+		VALUES ($1, $2, $3, $4, $5, $6)
+		RETURNING id
+	`
+	var id int
+	err := r.db.QueryRow(query,
+		usuario.Nombre, usuario.Email, usuario.PasswordHash,
+		usuario.GoogleID, usuario.Rol, usuario.Telefono,
+	).Scan(&id)
+	if err != nil {
+		return 0, fmt.Errorf("error al crear usuario: %w", err)
+	}
+	return id, nil
+}
+
+// ObtenerPorID retorna un usuario por su ID.
+func (r *UsuarioRepository) ObtenerPorID(id int) (*domain.Usuario, error) {
+	query := `
+		SELECT id, nombre, email, password_hash, google_id, rol, telefono, activo, created_at, updated_at
+		FROM usuarios WHERE id = $1
+	`
+	var u domain.Usuario
+	err := r.db.QueryRow(query, id).Scan(
+		&u.ID, &u.Nombre, &u.Email, &u.PasswordHash, &u.GoogleID,
+		&u.Rol, &u.Telefono, &u.Activo, &u.CreatedAt, &u.UpdatedAt,
+	)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("error al obtener usuario %d: %w", id, err)
+	}
+	return &u, nil
+}
+
+// ObtenerPorEmail retorna un usuario por su email.
+func (r *UsuarioRepository) ObtenerPorEmail(email string) (*domain.Usuario, error) {
+	query := `
+		SELECT id, nombre, email, password_hash, google_id, rol, telefono, activo, created_at, updated_at
+		FROM usuarios WHERE email = $1
+	`
+	var u domain.Usuario
+	err := r.db.QueryRow(query, email).Scan(
+		&u.ID, &u.Nombre, &u.Email, &u.PasswordHash, &u.GoogleID,
+		&u.Rol, &u.Telefono, &u.Activo, &u.CreatedAt, &u.UpdatedAt,
+	)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("error al obtener usuario por email: %w", err)
+	}
+	return &u, nil
+}
+
+// ObtenerPorGoogleID retorna un usuario por su Google ID.
+func (r *UsuarioRepository) ObtenerPorGoogleID(googleID string) (*domain.Usuario, error) {
+	query := `
+		SELECT id, nombre, email, password_hash, google_id, rol, telefono, activo, created_at, updated_at
+		FROM usuarios WHERE google_id = $1
+	`
+	var u domain.Usuario
+	err := r.db.QueryRow(query, googleID).Scan(
+		&u.ID, &u.Nombre, &u.Email, &u.PasswordHash, &u.GoogleID,
+		&u.Rol, &u.Telefono, &u.Activo, &u.CreatedAt, &u.UpdatedAt,
+	)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("error al obtener usuario por Google ID: %w", err)
+	}
+	return &u, nil
+}
+
+// Listar retorna todos los usuarios.
+func (r *UsuarioRepository) Listar(page, pageSize int) ([]domain.Usuario, int, error) {
+	var total int
+	err := r.db.QueryRow("SELECT COUNT(*) FROM usuarios").Scan(&total)
+	if err != nil {
+		return nil, 0, fmt.Errorf("error al contar usuarios: %w", err)
+	}
+
+	offset := (page - 1) * pageSize
+	query := `
+		SELECT id, nombre, email, password_hash, google_id, rol, telefono, activo, created_at, updated_at
+		FROM usuarios ORDER BY id ASC LIMIT $1 OFFSET $2
+	`
+	rows, err := r.db.Query(query, pageSize, offset)
+	if err != nil {
+		return nil, 0, fmt.Errorf("error al listar usuarios: %w", err)
+	}
+	defer rows.Close()
+
+	var usuarios []domain.Usuario
+	for rows.Next() {
+		var u domain.Usuario
+		if err := rows.Scan(
+			&u.ID, &u.Nombre, &u.Email, &u.PasswordHash, &u.GoogleID,
+			&u.Rol, &u.Telefono, &u.Activo, &u.CreatedAt, &u.UpdatedAt,
+		); err != nil {
+			return nil, 0, fmt.Errorf("error al escanear usuario: %w", err)
+		}
+		usuarios = append(usuarios, u)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, 0, fmt.Errorf("error al iterar usuarios: %w", err)
+	}
+	return usuarios, total, nil
+}
+
+// Eliminar elimina un usuario.
+func (r *UsuarioRepository) Eliminar(id int) error {
+	_, err := r.db.Exec("DELETE FROM usuarios WHERE id = $1", id)
+	if err != nil {
+		return fmt.Errorf("error al eliminar usuario %d: %w", id, err)
+	}
+	return nil
 }
 
 // =============================================================

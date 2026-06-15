@@ -121,6 +121,61 @@ type FiltrosCotizacion struct {
 	OrdenDir   string `json:"orden_dir"`   // ASC o DESC
 }
 
+// Usuario representa un usuario del sistema (admin o cliente).
+type Usuario struct {
+	ID           int       `json:"id"`
+	Nombre       string    `json:"nombre"`
+	Email        string    `json:"email"`
+	PasswordHash *string   `json:"-"` // Nunca se expone en JSON
+	GoogleID     *string   `json:"-"`
+	Rol          string    `json:"rol"`
+	Telefono     *string   `json:"telefono,omitempty"`
+	Activo       bool      `json:"activo"`
+	CreatedAt    time.Time `json:"created_at"`
+	UpdatedAt    time.Time `json:"updated_at"`
+}
+
+// RegistroRequest es el payload para registro de usuario.
+type RegistroRequest struct {
+	Nombre   string `json:"nombre"`
+	Email    string `json:"email"`
+	Password string `json:"password"`
+	Telefono string `json:"telefono,omitempty"`
+}
+
+// LoginRequest es el payload para inicio de sesión.
+type LoginRequest struct {
+	Email    string `json:"email"`
+	Password string `json:"password"`
+}
+
+// GoogleLoginRequest es el payload para login con Google.
+type GoogleLoginRequest struct {
+	GoogleID string `json:"google_id"`
+	Email    string `json:"email"`
+	Nombre   string `json:"nombre"`
+}
+
+// AuthResponse es la respuesta después de login/registro exitoso.
+type AuthResponse struct {
+	Token   string  `json:"token"`
+	Usuario Usuario `json:"usuario"`
+}
+
+// ActualizarCotizacionRequest es el payload para actualizar una cotización (admin).
+type ActualizarCotizacionRequest struct {
+	Estado           string  `json:"estado,omitempty"`
+	TotalCotizado    float64 `json:"total_cotizado,omitempty"`
+	PorcentajeMargen float64 `json:"porcentaje_margen,omitempty"`
+	UsuarioClienteID *int    `json:"usuario_cliente_id,omitempty"`
+}
+
+// ResponderCotizacionRequest es el payload para que un cliente acepte/rechace.
+type ResponderCotizacionRequest struct {
+	Aceptada bool   `json:"aceptada"`
+	Notas    string `json:"notas,omitempty"`
+}
+
 // ErrorResponse estandariza los errores de la API.
 type ErrorResponse struct {
 	Error   string `json:"error"`

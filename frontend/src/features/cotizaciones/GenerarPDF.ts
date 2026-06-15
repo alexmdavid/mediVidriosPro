@@ -1,5 +1,6 @@
 // =============================================================
 // Generación de PDF de cotización con formato exacto
+// Fuente: Times New Roman (serif)
 // =============================================================
 
 import jsPDF from 'jspdf'
@@ -19,7 +20,8 @@ const EMPRESA = {
 }
 
 // =============================================================
-// Función para formatear moneda colombiana (sin símbolo $)
+// Función para formatear moneda colombiana
+// Formato: $28'490.000 (apostófaro separador de miles)
 // =============================================================
 
 function formatMoneda(valor: number): string {
@@ -40,14 +42,6 @@ function formatMoneda(valor: number): string {
 }
 
 // =============================================================
-// Formatear área
-// =============================================================
-
-function formatArea(area: number): string {
-  return area.toFixed(2)
-}
-
-// =============================================================
 // Función principal para generar el PDF
 // =============================================================
 
@@ -57,28 +51,27 @@ export function generarCotizacionPDF(respuesta: CotizacionResponse): void {
 
   const pageWidth = doc.internal.pageSize.getWidth()
   const margin = 20
-  const contentWidth = pageWidth - margin * 2
+  const font = 'times' // Times New Roman
 
   let y = margin
 
   // =============================================================
-  // ENCABEZADO - Datos de la empresa
+  // ENCABEZADO - Datos de la empresa (bold, 12pt)
   // =============================================================
 
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(11)
+  doc.setFont(font, 'bold')
+  doc.setFontSize(12)
   doc.text(EMPRESA.nombre, margin, y)
-  y += 5
+  y += 6
 
-  doc.setFont('helvetica', 'normal')
-  doc.setFontSize(9)
+  doc.setFont(font, 'normal')
+  doc.setFontSize(10)
   doc.text(`RUT: ${EMPRESA.rut}`, margin, y)
-  y += 4.5
+  y += 5
   doc.text(`Correo: ${EMPRESA.correo} – Celular: ${EMPRESA.celular}`, margin, y)
-  y += 4.5
+  y += 5
   doc.text(EMPRESA.direccion, margin, y)
-  y += 4.5
-  y += 4
+  y += 10
 
   // =============================================================
   // FECHA Y CIUDAD
@@ -92,36 +85,38 @@ export function generarCotizacionPDF(respuesta: CotizacionResponse): void {
   }
   const fechaFormateada = `Duitama, ${fecha.toLocaleDateString('es-CO', opcionesFecha)}`
 
-  doc.setFont('helvetica', 'normal')
-  doc.setFontSize(10)
+  doc.setFont(font, 'normal')
+  doc.setFontSize(11)
   doc.text(fechaFormateada, margin, y)
-  y += 10
+  y += 12
 
   // =============================================================
   // DATOS DEL CLIENTE
   // =============================================================
 
-  doc.setFont('helvetica', 'normal')
-  doc.setFontSize(10)
+  doc.setFont(font, 'normal')
+  doc.setFontSize(11)
   doc.text('Señor', margin, y)
-  y += 5
+  y += 6
 
-  doc.setFont('helvetica', 'bold')
+  doc.setFont(font, 'bold')
+  doc.setFontSize(11)
   doc.text(cotizacion.cliente?.nombre || 'Cliente', margin, y)
-  y += 5
+  y += 6
 
-  doc.setFont('helvetica', 'normal')
+  doc.setFont(font, 'normal')
+  doc.setFontSize(11)
   doc.text('Ciudad', margin, y)
-  y += 10
+  y += 12
 
   // =============================================================
-  // TÍTULO: COTIZACIÓN
+  // TÍTULO: COTIZACIÓN (centrado, bold, 16pt)
   // =============================================================
 
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(14)
+  doc.setFont(font, 'bold')
+  doc.setFontSize(16)
   doc.text('COTIZACION', pageWidth / 2, y, { align: 'center' })
-  y += 10
+  y += 12
 
   // =============================================================
   // TABLA DE ITEMS
@@ -129,31 +124,39 @@ export function generarCotizacionPDF(respuesta: CotizacionResponse): void {
 
   const items = cotizacion.items || []
 
-  const tableData = items.map((item, index) => {
-    // Construir descripción detallada
-    let detalle = item.tipo_item.toUpperCase()
-
-    if (item.tipo_vidrio) {
-      detalle += ` - ${item.tipo_vidrio.nombre.toUpperCase()}`
-    }
-
-    if (item.ancho_mt && item.alto_mt) {
-      detalle += `\nMEDIDAS: ${(item.ancho_mt * 100).toFixed(0)}X${(item.alto_mt * 100).toFixed(0)}`
-    }
+  const tableData: string[][] = items.map((item, index) => {
+    // Construir descripción con formato de viñetas
+    let detalle = ''
 
     if (item.notas_diseno) {
-      detalle += `\n${item.notas_diseno}`
+      // Si hay notas de diseño, usarlas como descripción principal con viñetas
+      const lineas = item.notas_diseno.split('\n').filter((l) => l.trim())
+      detalle = lineas.map((l) => `• ${l.trim()}`).join('\n')
+    } else {
+      // Descripción por defecto: tipo de vidrio
+      detalle = `• ${item.tipo_item.toUpperCase()}`
+      if (item.tipo_vidrio) {
+        detalle += ` ${item.tipo_vidrio.nombre.toUpperCase()}`
+      }
     }
 
-    // Valor metro cuadrado
+    // Agregar dimensiones si es vidrio
+    if (item.ancho_mt && item.alto_mt) {
+      const anchoCm = (item.ancho_mt * 100).toFixed(0)
+      const altoCm = (item.alto_mt * 100).toFixed(0)
+      detalle += `\nMEDIDAS: ${anchoCm}X${altoCm}`
+    }
+
+    // Valor metro
     const valorMetro = item.precio_unitario_m2
-      ? `$${Math.round(item.precio_unitario_m2).toLocaleString('es-CO')}`
+      ? formatMoneda(item.precio_unitario_m2)
       : ''
 
     return [
       (index + 1).toString(),
       detalle,
       formatArea(item.area_total_m2),
+      valorMetro,
       formatMoneda(item.precio_calculado),
     ]
   })
@@ -163,111 +166,126 @@ export function generarCotizacionPDF(respuesta: CotizacionResponse): void {
     '',
     'TOTAL',
     formatArea(resumen.area_total_m2),
+    '',
     formatMoneda(resumen.total_con_margen),
   ])
 
   autoTable(doc, {
     startY: y,
     margin: { left: margin, right: margin },
-    head: [['ITEM', 'DETALLE', 'AREA EN M2', 'VALOR TOTAL']],
+    head: [['ITEM', 'DETALLE', 'AREA EN M2', 'VALOR METRO', 'VALOR TOTAL']],
     body: tableData,
     theme: 'grid',
     styles: {
-      fontSize: 8,
-      cellPadding: 3,
-      font: 'helvetica',
+      fontSize: 9,
+      cellPadding: 4,
+      font: font,
+      lineColor: [0, 0, 0],
+      lineWidth: 0.3,
+      textColor: [0, 0, 0],
+    },
+    headStyles: {
+      fillColor: [255, 255, 255],
+      textColor: [0, 0, 0],
+      fontStyle: 'bold',
+      fontSize: 9,
+      halign: 'center',
       lineColor: [0, 0, 0],
       lineWidth: 0.3,
     },
-    headStyles: {
-      fillColor: [240, 240, 240],
-      textColor: [0, 0, 0],
-      fontStyle: 'bold',
-      fontSize: 8,
-      halign: 'center',
-    },
     columnStyles: {
       0: { halign: 'center', cellWidth: 15 },
-      1: { cellWidth: 95 },
-      2: { halign: 'center', cellWidth: 30 },
-      3: { halign: 'right', cellWidth: 30 },
+      1: { cellWidth: 80 },
+      2: { halign: 'center', cellWidth: 28 },
+      3: { halign: 'right', cellWidth: 28 },
+      4: { halign: 'right', cellWidth: 28 },
     },
     didParseCell: function (data) {
-      // Estilo para la fila de total
+      // Fila de total: bold
       if (data.row.index === tableData.length - 1) {
         data.cell.styles.fontStyle = 'bold'
-        data.cell.styles.fillColor = [245, 245, 245]
+      }
+      // Encabezado: fondo blanco
+      if (data.section === 'head') {
+        data.cell.styles.fillColor = [255, 255, 255]
       }
     },
   })
 
   // Actualizar Y después de la tabla
-  y = (doc as jsPDF & { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 10
+  y = (doc as jsPDF & { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 12
 
   // =============================================================
   // CONDICIONES ECONÓMICAS
   // =============================================================
 
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(9)
+  doc.setFont(font, 'bold')
+  doc.setFontSize(10)
   doc.text('CONDICIONES ECONÓMICAS:', margin, y)
-  y += 5
-
-  doc.setFont('helvetica', 'normal')
-  doc.setFontSize(9)
-  doc.text('60% de anticipo al aceptar esta cotización y 40% contra entrega.', margin, y)
   y += 6
 
-  doc.setFont('helvetica', 'bold')
+  doc.setFont(font, 'normal')
+  doc.setFontSize(10)
+  doc.text('60% de anticipo al aceptar esta cotización y 40% contra entrega.', margin, y)
+  y += 7
+
+  doc.setFont(font, 'bold')
   doc.text('NO INCLUYE:', margin, y)
-  doc.setFont('helvetica', 'normal')
+  doc.setFont(font, 'normal')
   const noIncluyeX = margin + doc.getTextWidth('NO INCLUYE: ')
   doc.text('obras de albañilería.', noIncluyeX, y)
-  y += 6
+  y += 7
 
-  doc.setFont('helvetica', 'bold')
+  doc.setFont(font, 'bold')
   doc.text('TIEMPO DE ENTREGA:', margin, y)
-  doc.setFont('helvetica', 'normal')
+  doc.setFont(font, 'normal')
   const tiempoX = margin + doc.getTextWidth('TIEMPO DE ENTREGA: ')
   doc.text('A acordar con el cliente.', tiempoX, y)
-  y += 6
+  y += 7
 
-  doc.setFont('helvetica', 'bold')
+  doc.setFont(font, 'bold')
   doc.text('VALIDEZ OFERTA:', margin, y)
-  doc.setFont('helvetica', 'normal')
+  doc.setFont(font, 'normal')
   const validezX = margin + doc.getTextWidth('VALIDEZ OFERTA: ')
   doc.text('10 días calendario.', validezX, y)
-  y += 12
+  y += 14
 
   // =============================================================
   // FIRMA
   // =============================================================
 
-  doc.setFont('helvetica', 'normal')
-  doc.setFontSize(10)
+  doc.setFont(font, 'normal')
+  doc.setFontSize(11)
   doc.text('Cordialmente,', margin, y)
   y += 20
 
   // Línea de firma
   doc.setDrawColor(0)
   doc.setLineWidth(0.3)
-  doc.line(margin, y, margin + 60, y)
+  doc.line(margin, y, margin + 70, y)
+  y += 6
+
+  doc.setFont(font, 'bold')
+  doc.setFontSize(11)
+  doc.text(EMPRESA.nombre, margin, y)
   y += 5
 
-  doc.setFont('helvetica', 'bold')
+  doc.setFont(font, 'normal')
   doc.setFontSize(10)
-  doc.text(EMPRESA.nombre, margin, y)
-  y += 4.5
-
-  doc.setFont('helvetica', 'normal')
-  doc.setFontSize(9)
   doc.text(`CC. ${EMPRESA.rut}`, margin, y)
 
   // =============================================================
   // Guardar el PDF
   // =============================================================
 
-  const nombreArchivo = `Cotizacion_${cotizacion.id}_${cotizacion.cliente?.nombre || 'Cliente'
-    }.pdf`
+  const nombreArchivo = `Cotizacion_${cotizacion.id}_${cotizacion.cliente?.nombre || 'Cliente'}.pdf`
   doc.save(nombreArchivo)
+}
+
+// =============================================================
+// Utilidad para formatear área
+// =============================================================
+
+function formatArea(area: number): string {
+  return area.toFixed(2)
 }
