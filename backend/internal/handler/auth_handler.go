@@ -265,6 +265,9 @@ func (h *AuthHandler) GoogleLogin(w http.ResponseWriter, r *http.Request) {
 			log.Printf("🔐 Google Login: vinculando Google ID a usuario existente %d", usuario.ID)
 			// Vincular Google ID
 			usuario.GoogleID = strPtr(req.GoogleID)
+
+			// Sincronizar: asegurar que exista registro en tabla clientes
+			h.service.SincronizarClienteDesdeUsuario(usuario.Nombre, usuario.Email, "")
 		}
 	} else {
 		log.Printf("🔐 Google Login: usuario encontrado ID=%d", usuario.ID)
