@@ -46,10 +46,10 @@ CREATE TRIGGER trigger_usuarios_updated
 
 -- =============================================================
 -- Crear usuario admin por defecto
--- Contraseña: 123456 (hash bcrypt)
+-- Contraseña: 123456 (Actualizado por el servidor en cada arranque)
 -- =============================================================
 INSERT INTO usuarios (nombre, email, password_hash, rol) VALUES
-    ('Administrador', 'admin@medividrios.com', '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgNI9u969NS.vX.Y2VNs9.FpGv9S', 'admin')
+    ('Administrador', 'admin@medividrios.com', 'TEMPORAL_HASH_WILL_BE_UPDATED_BY_SERVER', 'admin')
 ON CONFLICT (email) DO UPDATE SET password_hash = EXCLUDED.password_hash;
 
 COMMIT;

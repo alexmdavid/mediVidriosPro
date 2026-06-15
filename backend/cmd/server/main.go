@@ -12,6 +12,7 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/lib/pq"
 	"github.com/rs/cors"
+	"golang.org/x/crypto/bcrypt"
 
 	"github.com/mediVidrios/backend/internal/handler"
 	"github.com/mediVidrios/backend/internal/infrastructure"
@@ -67,8 +68,16 @@ func main() {
 
 	// ---- ASEGURAR USUARIO ADMIN (SOLUCIÓN AL 401) ----
 	log.Printf("🌱 Verificando credenciales de administrador...")
+
+	// Generamos el hash dinámicamente para asegurar que coincida con '123456'
+	newHash, err := bcrypt.GenerateFromPassword([]byte("123456"), bcrypt.DefaultCost)
+	if err != nil {
+		log.Fatalf("❌ Error crítico generando hash de admin: %v", err)
+	}
+
 	adminEmail := "admin@medividrios.com"
-	adminPassHash := "$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgNI9u969NS.vX.Y2VNs9.FpGv9S" // Hash para '123456'
+	adminPassHash := string(newHash)
+
 	res, err := db.DB.Exec(`
 		INSERT INTO usuarios (nombre, email, password_hash, rol, activo)
 		VALUES ('Administrador', $1, $2, 'admin', true)
